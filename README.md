@@ -10,4 +10,4 @@
 >
 > Jak longujesz rope to czasem ci zeruje konto
 >
-> Nie da sie przewidzieć nawet sekundy do przodu, więc jak próbujesz przewidzieć to JESTEŚ KURWA ŁOSIEM JEBANYM
+> Nie da sie przewidzieć nawet sekundy do przodu, więc jak próbujesz przewidzieć to JESTEŚ KURWA ŁOSIEM JEBANYM i chętnie kupie twoją szklaną kulę KURWO
