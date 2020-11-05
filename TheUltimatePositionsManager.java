@@ -95,7 +95,7 @@ public class TheUltimatePositionsManager implements IStrategy {
             switch (messageType) {
                 case ORDER_FILL_OK:
                     // debug if (because usually initial order is made before script is ran)
-                    // if (filledOrdersCount() > 1) {
+                    // if (filledOrdersCount() >= 1) {
                       this.firstOrderTriggered = true;
                     // }
                     IBar lastBar = getBar(slowTrailsTimeFrame, stopLossOfferSide(), 1);
@@ -148,13 +148,13 @@ public class TheUltimatePositionsManager implements IStrategy {
         if (ordersTotal > 0 && !this.volatileBarDetected) {
           IBar lastSlowBar = getBar(slowTrailsTimeFrame, stopLossOfferSide(), 0);
           double lastSlowBarPips = Math.abs(lastSlowBar.getLow() - lastSlowBar.getHigh()) / this.instrument.getPipValue();
-          if (lastSlowBarPips > volatileBarPips) {
+          if (lastSlowBarPips > volatileBarPips && barColorRightForFastTrails(lastSlowBar)) {
             this.volatileBarDetected = true;
           }
         }
 
-        if(filledOrdersCount() == 0) {
-          this.console.getOut().println("No orders,shutdown!");
+        if(filledOrdersCount() == 0 && this.volatileBarDetected) {
+          this.console.getOut().println("Fast trailing finished. Closing all remaining orders.");
           closeAllOrders();
           context.stop();
           // debug
@@ -188,24 +188,24 @@ public class TheUltimatePositionsManager implements IStrategy {
 
 
 
+        int ordersTotal = engine.getOrders(instrument).size();
         // debug
-        // if(filledOrdersCount() == 0) {
+        // if(ordersTotal == 0) {
         //     IBar lastBar = getBar(slowTrailsTimeFrame, OfferSide.ASK, 1);
         //     this.closeLimitLevel = lastBar.getHigh();
-        //     engine.submitOrder(getLabel(instrument), instrument, OrderCommand.SELL, 0.02, askBar.getClose(), 3.0, getRoundedPrice(askBar.getClose() + (250 * instrument.getPipValue())), 0.0);
+        //     engine.submitOrder(getLabel(instrument), instrument, OrderCommand.SELL, 0.02, askBar.getClose(), 3.0, getRoundedPrice(askBar.getClose() + (250 * instrument.getPipValue())), getRoundedPrice(askBar.getClose() - (50 * instrument.getPipValue())));
             // engine.submitOrder(getLabel(instrument), instrument, OrderCommand.BUYSTOP, 0.02, askBar.getClose() + 45 * instrument.getPipValue(), 3.0, getRoundedPrice(askBar.getClose() - 100 * instrument.getPipValue()), 0.0);
             // engine.submitOrder(getLabel(instrument), instrument, OrderCommand.BUYSTOP, 0.02, askBar.getClose() + 75 * instrument.getPipValue(), 3.0, getRoundedPrice(askBar.getClose() - 100 * instrument.getPipValue()), 0.0);
             // engine.submitOrder(getLabel(instrument), instrument, OrderCommand.BUYSTOP, 0.02, askBar.getClose() + 105 * instrument.getPipValue(), 3.0, getRoundedPrice(askBar.getClose() - 100 * instrument.getPipValue()), 0.0);
             // engine.submitOrder(getLabel(instrument), instrument, OrderCommand.BUYSTOP, 0.02, askBar.getClose() + 135 * instrument.getPipValue(), 3.0, getRoundedPrice(askBar.getClose() - 100 * instrument.getPipValue()), 0.0);
-            // engine.submitOrder(getLabel(instrument), instrument, OrderCommand.SELLSTOP, 0.02, askBar.getClose() - 75 * instrument.getPipValue(), 3.0, getRoundedPrice(askBar.getClose() + 30 * instrument.getPipValue()), 0.0);
-            // engine.submitOrder(getLabel(instrument), instrument, OrderCommand.SELLSTOP, 0.02, askBar.getClose() - 105 * instrument.getPipValue(), 3.0, getRoundedPrice(askBar.getClose() + 30 * instrument.getPipValue()), 0.0);
-            // engine.submitOrder(getLabel(instrument), instrument, OrderCommand.SELLSTOP, 0.02, askBar.getClose() - 135 * instrument.getPipValue(), 3.0, getRoundedPrice(askBar.getClose() + 30 * instrument.getPipValue()), 0.0);
+        //     engine.submitOrder(getLabel(instrument), instrument, OrderCommand.SELLSTOP, 0.02, askBar.getClose() - 75 * instrument.getPipValue(), 3.0, getRoundedPrice(askBar.getClose() + 30 * instrument.getPipValue()), 0.0);
+        //     engine.submitOrder(getLabel(instrument), instrument, OrderCommand.SELLSTOP, 0.02, askBar.getClose() - 105 * instrument.getPipValue(), 3.0, getRoundedPrice(askBar.getClose() + 30 * instrument.getPipValue()), 0.0);
+        //     engine.submitOrder(getLabel(instrument), instrument, OrderCommand.SELLSTOP, 0.02, askBar.getClose() - 135 * instrument.getPipValue(), 3.0, getRoundedPrice(askBar.getClose() + 30 * instrument.getPipValue()), 0.0);
         // }
 
 
 
 
-        int ordersTotal = engine.getOrders(instrument).size();
 
         double upperBand = 0.0,upperBandPrev = 0.0;
         double bottomBand = 0.0,bottomBandPrev = 0.0;
@@ -267,10 +267,26 @@ public class TheUltimatePositionsManager implements IStrategy {
 
             if (isLong() && lastBar.getClose() < this.closeLimitLevel && this.closeLimitLevel != -1) {
               closeAllOrders();
+              this.console.getOut().println("EXITING");
+              context.stop();
+              // debug
+              // this.volatileBarDetected = false;
+              // this.entriesClosedByRiskManagement = 0;
+              // this.closeLimitLevel = -1;
+              // this.firstOrderTriggered = false;
+
               return;
             }
             if (!isLong() && lastBar.getClose() > this.closeLimitLevel && this.closeLimitLevel != -1) {
               closeAllOrders();
+              this.console.getOut().println("EXITING");
+              context.stop();
+              // debug
+              // this.volatileBarDetected = false;
+              // this.entriesClosedByRiskManagement = 0;
+              // this.closeLimitLevel = -1;
+              // this.firstOrderTriggered = false;
+
               return;
             }
 
@@ -393,6 +409,22 @@ public class TheUltimatePositionsManager implements IStrategy {
   boolean isLong() throws JFException {
     List<IOrder> orders = engine.getOrders(this.instrument);
     return orders.get(0).isLong();
+  }
+
+  boolean barColorRightForFastTrails(IBar bar) throws JFException {
+    boolean isRed = bar.getClose() < bar.getOpen();
+    boolean result = false;
+    if (isLong()) {
+      if (!isRed) {
+        result = true;
+      }
+    }
+    if (!isLong()) {
+      if (isRed) {
+        result = true;
+      }
+    }
+    return result;
   }
 
   protected IBar getBar(Period timeFrame, OfferSide marketSide, int index) throws JFException {
