@@ -9,6 +9,8 @@
 > AT nie działa
 >
 > AM nie działa
+> 
+> Analiza sedesowa działa
 >
 > Sęp to tchórz 
 >
