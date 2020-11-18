@@ -28,17 +28,24 @@ public class TheUltimatePositionsManager implements IStrategy {
     private double prevBandCached = -1;
     private boolean volatileBarDetected = false;
 
+    private double closeLimitLevelForStopLoss = -1;
     private double closeLimitLevel = -1;
     private boolean firstOrderTriggered = false;
 
     @Configurable("Instrument")
     public Instrument instrument = Instrument.EURUSD;
-    @Configurable(value="Starting prev band value", stepSize=0.001)
-    public double startingPrevBandValue = -1;
     @Configurable(value="Strating close limit level", stepSize=0.001)
     public double startingCloseLimitLevel = -1;
     @Configurable(value="Assume first order triggered", stepSize=0.001)
     public boolean startingFirstOrderTriggerred = false;
+    @Configurable(value="Minimum extremes distance for stop loss jump pips", stepSize=1)
+    public int minimumExtremesDistanceForStopLossJumpPips = 10;
+    @Configurable(value="Trailing stops pips", stepSize=1)
+    public int trailingStopsPips = 80;
+    @Configurable(value="Volatile bar pips", stepSize=1)
+    public int volatileBarPips = 120;
+    @Configurable(value="Starting prev band value", stepSize=0.001)
+    public double startingPrevBandValue = -1;
     @Configurable(value="------------------------", stepSize=0.001)
     public boolean xxx = false;
     @Configurable("Time Frame - DD_trails")
@@ -53,10 +60,6 @@ public class TheUltimatePositionsManager implements IStrategy {
     public int fastTrailsLookback = 55;
     @Configurable(value="ATR multiplier - Fast DD_trails", stepSize=0.001)
     public double fastTrailsMultiplier = 10.0;
-    @Configurable(value="Volatile bar pips", stepSize=1)
-    public int volatileBarPips = 120;
-    @Configurable(value="Max entries closed by risk management", stepSize=0.001)
-    public int maxEntriesClosedByRiskManagement = 0;
     @Configurable(value="Slippage", stepSize=0.001)
     public double Slippage = 3.0;
 
@@ -74,11 +77,11 @@ public class TheUltimatePositionsManager implements IStrategy {
         this.prevBandCached = startingPrevBandValue;
         this.closeLimitLevel = startingCloseLimitLevel;
         this.firstOrderTriggered = startingFirstOrderTriggerred;
-
         // Do subscribe selected instrument
         Set subscribedInstruments = new HashSet();
         subscribedInstruments.add(this.instrument);
         context.setSubscribedInstruments(subscribedInstruments);
+        setTrailingStopsToAllOrders();
     }
 
     public void onAccount(IAccount account) throws JFException {
@@ -102,10 +105,14 @@ public class TheUltimatePositionsManager implements IStrategy {
                     if (isLong() && this.prevBandCached > lastBar.getLow() || !isLong() && this.prevBandCached < lastBar.getHigh()) {
                       if (isLong()) {
                         if (this.closeLimitLevel == -1 || this.closeLimitLevel < lastBar.getLow()) {
+                          moveAllStopLossesToCachedLevel();
+                          cacheCloseLimitLevelForStopLoss();
                           this.closeLimitLevel = lastBar.getLow();
                         }
                       } else {
                         if (this.closeLimitLevel == -1 || this.closeLimitLevel > lastBar.getHigh()) {
+                          moveAllStopLossesToCachedLevel();
+                          cacheCloseLimitLevelForStopLoss();
                           this.closeLimitLevel = lastBar.getHigh();
                         }
                       }
@@ -156,12 +163,13 @@ public class TheUltimatePositionsManager implements IStrategy {
         if(filledOrdersCount() == 0 && this.volatileBarDetected) {
           this.console.getOut().println("Fast trailing finished. Closing all remaining orders.");
           closeAllOrders();
-          context.stop();
+          // context.stop();
           // debug
-          // this.volatileBarDetected = false;
-          // this.entriesClosedByRiskManagement = 0;
-          // this.closeLimitLevel = -1;
-          // this.firstOrderTriggered = false;
+          this.volatileBarDetected = false;
+          this.entriesClosedByRiskManagement = 0;
+          this.closeLimitLevel = -1;
+          this.closeLimitLevelForStopLoss = -1;
+          this.firstOrderTriggered = false;
         }
     }
 
@@ -193,14 +201,15 @@ public class TheUltimatePositionsManager implements IStrategy {
         // if(ordersTotal == 0) {
         //     IBar lastBar = getBar(slowTrailsTimeFrame, OfferSide.ASK, 1);
         //     this.closeLimitLevel = lastBar.getHigh();
-        //     engine.submitOrder(getLabel(instrument), instrument, OrderCommand.SELL, 0.02, askBar.getClose(), 3.0, getRoundedPrice(askBar.getClose() + (250 * instrument.getPipValue())), getRoundedPrice(askBar.getClose() - (50 * instrument.getPipValue())));
+        //     engine.submitOrder(getLabel(instrument), instrument, OrderCommand.SELL, 0.02, askBar.getClose(), 3.0, getRoundedPrice(askBar.getClose() + (250 * instrument.getPipValue())), getRoundedPrice(askBar.getClose() - (50 * instrument.getPipValue()))).waitForUpdate(500);
             // engine.submitOrder(getLabel(instrument), instrument, OrderCommand.BUYSTOP, 0.02, askBar.getClose() + 45 * instrument.getPipValue(), 3.0, getRoundedPrice(askBar.getClose() - 100 * instrument.getPipValue()), 0.0);
             // engine.submitOrder(getLabel(instrument), instrument, OrderCommand.BUYSTOP, 0.02, askBar.getClose() + 75 * instrument.getPipValue(), 3.0, getRoundedPrice(askBar.getClose() - 100 * instrument.getPipValue()), 0.0);
             // engine.submitOrder(getLabel(instrument), instrument, OrderCommand.BUYSTOP, 0.02, askBar.getClose() + 105 * instrument.getPipValue(), 3.0, getRoundedPrice(askBar.getClose() - 100 * instrument.getPipValue()), 0.0);
             // engine.submitOrder(getLabel(instrument), instrument, OrderCommand.BUYSTOP, 0.02, askBar.getClose() + 135 * instrument.getPipValue(), 3.0, getRoundedPrice(askBar.getClose() - 100 * instrument.getPipValue()), 0.0);
-        //     engine.submitOrder(getLabel(instrument), instrument, OrderCommand.SELLSTOP, 0.02, askBar.getClose() - 75 * instrument.getPipValue(), 3.0, getRoundedPrice(askBar.getClose() + 30 * instrument.getPipValue()), 0.0);
-        //     engine.submitOrder(getLabel(instrument), instrument, OrderCommand.SELLSTOP, 0.02, askBar.getClose() - 105 * instrument.getPipValue(), 3.0, getRoundedPrice(askBar.getClose() + 30 * instrument.getPipValue()), 0.0);
-        //     engine.submitOrder(getLabel(instrument), instrument, OrderCommand.SELLSTOP, 0.02, askBar.getClose() - 135 * instrument.getPipValue(), 3.0, getRoundedPrice(askBar.getClose() + 30 * instrument.getPipValue()), 0.0);
+        //     engine.submitOrder(getLabel(instrument), instrument, OrderCommand.SELLSTOP, 0.02, askBar.getClose() - 75 * instrument.getPipValue(), 3.0, getRoundedPrice(askBar.getClose() + 30 * instrument.getPipValue()), 0.0).waitForUpdate(500);
+        //     engine.submitOrder(getLabel(instrument), instrument, OrderCommand.SELLSTOP, 0.02, askBar.getClose() - 105 * instrument.getPipValue(), 3.0, getRoundedPrice(askBar.getClose() + 30 * instrument.getPipValue()), 0.0).waitForUpdate(500);
+        //     engine.submitOrder(getLabel(instrument), instrument, OrderCommand.SELLSTOP, 0.02, askBar.getClose() - 135 * instrument.getPipValue(), 3.0, getRoundedPrice(askBar.getClose() + 30 * instrument.getPipValue()), 0.0).waitForUpdate(500);
+        //     setTrailingStopsToAllOrders();
         // }
 
 
@@ -273,6 +282,7 @@ public class TheUltimatePositionsManager implements IStrategy {
               // this.volatileBarDetected = false;
               // this.entriesClosedByRiskManagement = 0;
               // this.closeLimitLevel = -1;
+              // this.closeLimitLevelForStopLoss = -1;
               // this.firstOrderTriggered = false;
 
               return;
@@ -285,6 +295,7 @@ public class TheUltimatePositionsManager implements IStrategy {
               // this.volatileBarDetected = false;
               // this.entriesClosedByRiskManagement = 0;
               // this.closeLimitLevel = -1;
+              // this.closeLimitLevelForStopLoss = -1;
               // this.firstOrderTriggered = false;
 
               return;
@@ -293,10 +304,14 @@ public class TheUltimatePositionsManager implements IStrategy {
           if (isLong() && this.prevBandCached > lastBar.getLow() && this.firstOrderTriggered || !isLong() && this.prevBandCached < lastBar.getHigh() && this.firstOrderTriggered) {
             if (isLong()) {
               if (this.closeLimitLevel == -1 || this.closeLimitLevel < lastBar.getLow()) {
+                moveAllStopLossesToCachedLevel();
+                cacheCloseLimitLevelForStopLoss();
                 this.closeLimitLevel = lastBar.getLow();
               }
             } else {
               if (this.closeLimitLevel == -1 || this.closeLimitLevel > lastBar.getHigh()) {
+                moveAllStopLossesToCachedLevel();
+                cacheCloseLimitLevelForStopLoss();
                 this.closeLimitLevel = lastBar.getHigh();
               }
             }
@@ -405,6 +420,34 @@ public class TheUltimatePositionsManager implements IStrategy {
   //   }
   //   return result;
   // }
+
+  void setTrailingStopsToAllOrders() throws JFException {
+    for (IOrder order : engine.getOrders(this.instrument)) {
+      if (order.getTrailingStep() == 0) {
+        double currentPrice = order.getStopLossPrice();
+        order.setStopLossPrice(currentPrice, stopLossOfferSide(), trailingStopsPips);
+      }
+    }
+    this.console.getOut().println("All orders trailing stops set");
+  }
+
+  void moveAllStopLossesToCachedLevel() throws JFException {
+    if (this.closeLimitLevelForStopLoss == -1 || !this.firstOrderTriggered) {
+      return;
+    }
+    setAllStopLossesTo(this.closeLimitLevelForStopLoss);
+    this.console.getOut().println("Moving all stop losses to high before last");
+  }
+
+  void cacheCloseLimitLevelForStopLoss() throws JFException {
+    double pipsDiff = Math.abs(this.closeLimitLevelForStopLoss - this.closeLimitLevel) / this.instrument.getPipValue();
+    if (this.closeLimitLevelForStopLoss != -1 && pipsDiff < minimumExtremesDistanceForStopLossJumpPips) {
+      return;
+    }
+    if (this.closeLimitLevelForStopLoss == -1 || pipsDiff >= minimumExtremesDistanceForStopLossJumpPips) {
+      this.closeLimitLevelForStopLoss = this.closeLimitLevel;
+    }
+  }
 
   boolean isLong() throws JFException {
     List<IOrder> orders = engine.getOrders(this.instrument);
