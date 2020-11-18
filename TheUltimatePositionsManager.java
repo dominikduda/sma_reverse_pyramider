@@ -427,6 +427,7 @@ public class TheUltimatePositionsManager implements IStrategy {
         double currentPrice = order.getStopLossPrice();
         order.setStopLossPrice(currentPrice, stopLossOfferSide(), trailingStopsPips);
         order.waitForUpdate(5000);
+        order.waitForUpdate(5000);
       }
     }
     this.console.getOut().println("All orders trailing stops set");
