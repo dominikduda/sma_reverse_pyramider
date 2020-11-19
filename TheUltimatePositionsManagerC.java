@@ -39,11 +39,11 @@ public class TheUltimatePositionsManagerC implements IStrategy {
     @Configurable(value="Assume first order triggered", stepSize=0.001)
     public boolean startingFirstOrderTriggerred = false;
     @Configurable(value="Minimum extremes distance for stop loss jump pips", stepSize=1)
-    public int minimumExtremesDistanceForStopLossJumpPips = 10;
+    public int minimumExtremesDistanceForStopLossJumpPips = 15;
     @Configurable(value="Trailing stops pips", stepSize=1)
     public int trailingStopsPips = 80;
     @Configurable(value="Volatile bar pips", stepSize=1)
-    public int volatileBarPips = 120;
+    public int volatileBarPips = 110;
     @Configurable(value="Starting prev band value", stepSize=0.001)
     public double startingPrevBandValue = -1;
     @Configurable(value="------------------------", stepSize=0.001)
@@ -105,15 +105,11 @@ public class TheUltimatePositionsManagerC implements IStrategy {
                     if (isLong() && this.prevBandCached > lastBar.getLow() || !isLong() && this.prevBandCached < lastBar.getHigh()) {
                       if (isLong()) {
                         if (this.closeLimitLevel == -1 || this.closeLimitLevel < lastBar.getLow()) {
-                          moveAllStopLossesToCachedLevel();
-                          cacheCloseLimitLevelForStopLoss();
-                          this.closeLimitLevel = lastBar.getLow();
+                          handleStopLimitLevelUpdate();
                         }
                       } else {
                         if (this.closeLimitLevel == -1 || this.closeLimitLevel > lastBar.getHigh()) {
-                          moveAllStopLossesToCachedLevel();
-                          cacheCloseLimitLevelForStopLoss();
-                          this.closeLimitLevel = lastBar.getHigh();
+                          handleStopLimitLevelUpdate();
                         }
                       }
                     }
@@ -304,15 +300,11 @@ public class TheUltimatePositionsManagerC implements IStrategy {
           if (isLong() && this.prevBandCached > lastBar.getLow() && this.firstOrderTriggered || !isLong() && this.prevBandCached < lastBar.getHigh() && this.firstOrderTriggered) {
             if (isLong()) {
               if (this.closeLimitLevel == -1 || this.closeLimitLevel < lastBar.getLow()) {
-                moveAllStopLossesToCachedLevel();
-                cacheCloseLimitLevelForStopLoss();
-                this.closeLimitLevel = lastBar.getLow();
+                handleStopLimitLevelUpdate();
               }
             } else {
               if (this.closeLimitLevel == -1 || this.closeLimitLevel > lastBar.getHigh()) {
-                moveAllStopLossesToCachedLevel();
-                cacheCloseLimitLevelForStopLoss();
-                this.closeLimitLevel = lastBar.getHigh();
+                handleStopLimitLevelUpdate();
               }
             }
           }
@@ -420,6 +412,17 @@ public class TheUltimatePositionsManagerC implements IStrategy {
   //   }
   //   return result;
   // }
+
+  void handleStopLimitLevelUpdate() throws JFException {
+    IBar lastBar = getBar(slowTrailsTimeFrame, stopLossOfferSide(), 1);
+    double prevLimitLevelForStopLoss = this.closeLimitLevelForStopLoss;
+
+    cacheCloseLimitLevelForStopLoss();
+    if (prevLimitLevelForStopLoss != this.closeLimitLevelForStopLoss) {
+      moveAllStopLossesToCachedLevel();
+    }
+    this.closeLimitLevel = lastBar.getHigh();
+  }
 
   void setTrailingStopsToAllOrders() throws JFException {
     for (IOrder order : engine.getOrders(this.instrument)) {
