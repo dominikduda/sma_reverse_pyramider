@@ -43,7 +43,7 @@ public class TheUltimatePositionsManagerC implements IStrategy {
     @Configurable(value="Trailing stops pips", stepSize=1)
     public int trailingStopsPips = 80;
     @Configurable(value="Volatile bar pips", stepSize=1)
-    public int volatileBarPips = 110;
+    public int volatileBarPips = 100;
     @Configurable(value="Starting prev band value", stepSize=0.001)
     public double startingPrevBandValue = -1;
     @Configurable(value="------------------------", stepSize=0.001)
@@ -59,7 +59,7 @@ public class TheUltimatePositionsManagerC implements IStrategy {
     @Configurable("Time period - Fast DD_trails")
     public int fastTrailsLookback = 55;
     @Configurable(value="ATR multiplier - Fast DD_trails", stepSize=0.001)
-    public double fastTrailsMultiplier = 10.0;
+    public double fastTrailsMultiplier = 6;
     @Configurable(value="Slippage", stepSize=0.001)
     public double Slippage = 3.0;
 
