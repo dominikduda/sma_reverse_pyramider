@@ -133,25 +133,25 @@ public class TheSMAManager implements IStrategy {
 
       int ordersTotal = engine.getOrders(this.instrument).size();
 
-      // timeFrame = Period.FIFTEEN_MINS;
+      timeFrame = Period.FIFTEEN_MINS;
       // if (instrument == this.instrument && period == Period.FIFTEEN_MINS && ordersTotal == 0) {
       //   if(ordersTotal == 0) {
       //       IBar lastBar = getBar(timeFrame, OfferSide.ASK, 1);
       //       this.closeLimitLevel = lastBar.getHigh();
-            // engine.submitOrder(getLabel(instrument), instrument, OrderCommand.SELL, 0.02, askBar.getClose(), 3.0, getRoundedPrice(askBar.getClose() + (15 * instrument.getPipValue())), 0).waitForUpdate(500);
-            // engine.submitOrder(getLabel(instrument), instrument, OrderCommand.SELL, 0.02, askBar.getClose(), 3.0, getRoundedPrice(askBar.getClose() + (15 * instrument.getPipValue())), 0).waitForUpdate(500);
-            // engine.submitOrder(getLabel(instrument), instrument, OrderCommand.SELL, 0.02, askBar.getClose(), 3.0, getRoundedPrice(askBar.getClose() + (15 * instrument.getPipValue())), 0).waitForUpdate(500);
-            // engine.submitOrder(getLabel(instrument), instrument, OrderCommand.BUY, 0.02, askBar.getClose(), 3.0, getRoundedPrice(askBar.getClose() - (10 * instrument.getPipValue())), 0).waitForUpdate(500);
-            // engine.submitOrder(getLabel(instrument), instrument, OrderCommand.BUY, 0.02, askBar.getClose(), 3.0, getRoundedPrice(askBar.getClose() - (10 * instrument.getPipValue())), 0).waitForUpdate(500);
-            // engine.submitOrder(getLabel(instrument), instrument, OrderCommand.BUY, 0.02, askBar.getClose(), 3.0, getRoundedPrice(askBar.getClose() - (10 * instrument.getPipValue())), 0).waitForUpdate(500);
-          //   this.firstExitPerformed = false;
-          //   this.secondExitPerformed = false;
-          //   IOrder firstOrder = engine.getOrders(this.instrument).get(0);
-          //   setAllStopLossesTo(firstOrder.getStopLossPrice());
-          //   this.initialStopPips = Math.abs((firstOrder.getOpenPrice() - firstOrder.getStopLossPrice()) / instrument.getPipValue());
-          //   this.breakoutLevel = askBar.getClose() + (5 * instrument.getPipValue());
-          // }
-      }
+      //       engine.submitOrder(getLabel(instrument), instrument, OrderCommand.SELL, 0.02, askBar.getClose(), 3.0, getRoundedPrice(askBar.getClose() + (15 * instrument.getPipValue())), 0).waitForUpdate(500);
+      //       engine.submitOrder(getLabel(instrument), instrument, OrderCommand.SELL, 0.02, askBar.getClose(), 3.0, getRoundedPrice(askBar.getClose() + (15 * instrument.getPipValue())), 0).waitForUpdate(500);
+      //       engine.submitOrder(getLabel(instrument), instrument, OrderCommand.SELL, 0.02, askBar.getClose(), 3.0, getRoundedPrice(askBar.getClose() + (15 * instrument.getPipValue())), 0).waitForUpdate(500);
+      //       engine.submitOrder(getLabel(instrument), instrument, OrderCommand.BUY, 0.02, askBar.getClose(), 3.0, getRoundedPrice(askBar.getClose() - (10 * instrument.getPipValue())), 0).waitForUpdate(500);
+      //       engine.submitOrder(getLabel(instrument), instrument, OrderCommand.BUY, 0.02, askBar.getClose(), 3.0, getRoundedPrice(askBar.getClose() - (10 * instrument.getPipValue())), 0).waitForUpdate(500);
+      //       engine.submitOrder(getLabel(instrument), instrument, OrderCommand.BUY, 0.02, askBar.getClose(), 3.0, getRoundedPrice(askBar.getClose() - (10 * instrument.getPipValue())), 0).waitForUpdate(500);
+      //       this.firstExitPerformed = false;
+      //       this.secondExitPerformed = false;
+      //       IOrder firstOrder = engine.getOrders(this.instrument).get(0);
+      //       setAllStopLossesTo(firstOrder.getStopLossPrice());
+      //       this.initialStopPips = Math.abs((firstOrder.getOpenPrice() - firstOrder.getStopLossPrice()) / instrument.getPipValue());
+      //       this.breakoutLevel = askBar.getClose() + (5 * instrument.getPipValue());
+      //     }
+      // }
 
       if (period == Period.FIVE_MINS && ordersTotal > 0) {
         if (breakoutLevel != -1 && (isLong() && bidBar.getClose() > breakoutLevel || !isLong() && askBar.getClose() < breakoutLevel)) {
