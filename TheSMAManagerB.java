@@ -77,7 +77,7 @@ public class TheSMAManagerB implements IStrategy {
           this.secondExitPerformed = true;
         }
         if (ordersTotal == 3) {
-          this.order3 = engine.getOrders(this.instrument).get(3);
+          this.order3 = engine.getOrders(this.instrument).get(2);
         }
 
         // comment_for_debug
