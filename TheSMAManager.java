@@ -43,6 +43,9 @@ public class TheSMAManager implements IStrategy {
     @Configurable("Breakout level")
     public double breakoutLevel = -1;
 
+    public double prevBottomBand = -1;
+    public double prevTopBand = -1;
+
 
 
     private IOrder order1 = null;
@@ -58,6 +61,8 @@ public class TheSMAManager implements IStrategy {
 
 
     private double initialStopPips = -1;
+    private boolean topBandStretched = false;
+    private boolean bottomBandStretched = false;
 
     private IFeedDescriptor feedDescriptor15;
     private IFeedDescriptor feedDescriptor5;
@@ -257,6 +262,44 @@ public class TheSMAManager implements IStrategy {
       if (period != Period.FIFTEEN_MINS) {
         return;
       }
+
+      // TOP AND BOTTOM BAND generation
+      long prevBarTime = history.getPreviousBarStart(Period.FIFTEEN_MINS, askBar.getTime());
+      List<IBar> askBarsX = history.getBars(instrument, Period.FIFTEEN_MINS, OfferSide.ASK, Filter.WEEKENDS, 200, askBar.getTime(), 0);
+      double topBand = Double.NEGATIVE_INFINITY;
+      for (IBar bar : askBarsX) {
+        if (bar.getHigh() > topBand) {
+          topBand = bar.getHigh();
+        }
+      }
+      List<IBar> bidBarsX = history.getBars(instrument, Period.FIFTEEN_MINS, OfferSide.BID, Filter.WEEKENDS, 200, bidBar.getTime(), 0);
+      double bottomBand = Double.POSITIVE_INFINITY;
+      for (IBar bar : bidBarsX) {
+        if (bar.getLow() < bottomBand) {
+          bottomBand = bar.getLow();
+        }
+      }
+      if (bottomBand < this.prevBottomBand) {
+        this.bottomBandStretched = true;
+        console.getOut().println("Dolna banda przebita");
+      }
+      if (topBand > this.prevTopBand) {
+        this.topBandStretched = true;
+        console.getOut().println("Górna banda przebita");
+      }
+      if (this.topBandStretched && bidBar.getClose() < bidBar.getOpen()) {
+        this.topBandStretched = false;
+        IOrder orderToClose = engine.getOrders(this.instrument).get(0);
+        orderToClose.close();
+      }
+      if (this.bottomBandStretched && askBar.getClose() > askBar.getOpen()) {
+        this.bottomBandStretched = false;
+        IOrder orderToClose = engine.getOrders(this.instrument).get(0);
+        orderToClose.close();
+      }
+      this.prevTopBand = topBand;
+      this.prevBottomBand = bottomBand;
+
 
       // top bonds ribon calculation
       List<IBar> askBars2 = history.getBars(instrument, Period.FIFTEEN_MINS, OfferSide.ASK, Filter.WEEKENDS, 44, askBar.getTime(), 0);
