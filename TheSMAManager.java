@@ -63,6 +63,7 @@ public class TheSMAManager implements IStrategy {
     private double initialStopPips = -1;
     private boolean topBandStretched = false;
     private boolean bottomBandStretched = false;
+    private boolean breakoutDone = false;
 
     private IFeedDescriptor feedDescriptor15;
     private IFeedDescriptor feedDescriptor5;
@@ -83,7 +84,7 @@ public class TheSMAManager implements IStrategy {
 
         // comment_for_debug
         if (ordersTotal <= 10) {
-         throw new JFException("10 or less orders needed!");
+          throw new JFException("10 or less orders needed!");
         }
         IOrder firstOrder = engine.getOrders(this.instrument).get(0);
         this.initialStopPips = Math.abs((firstOrder.getOpenPrice() - firstOrder.getStopLossPrice()) / instrument.getPipValue());
@@ -185,37 +186,39 @@ public class TheSMAManager implements IStrategy {
       // if (instrument == this.instrument && period == Period.FIFTEEN_MINS && ordersTotal == 0) {
       //       IBar lastBar = getBar(timeFrame, OfferSide.ASK, 1);
       //       boolean justChanged = false;
+      //       int stopLossPips = 5;
       //       if (this.closeLimitLevel == 3) {
-      //         engine.submitOrder(getLabel(instrument), instrument, OrderCommand.SELL, 0.02, askBar.getClose(), 3.0, getRoundedPrice(askBar.getClose() + (5 * instrument.getPipValue())), 0).waitForUpdate(5000);
-      //         engine.submitOrder(getLabel(instrument), instrument, OrderCommand.SELL, 0.02, askBar.getClose(), 3.0, getRoundedPrice(askBar.getClose() + (5 * instrument.getPipValue())), 0).waitForUpdate(5000);
-      //         engine.submitOrder(getLabel(instrument), instrument, OrderCommand.SELL, 0.02, askBar.getClose(), 3.0, getRoundedPrice(askBar.getClose() + (5 * instrument.getPipValue())), 0).waitForUpdate(5000);
-      //         engine.submitOrder(getLabel(instrument), instrument, OrderCommand.SELL, 0.02, askBar.getClose(), 3.0, getRoundedPrice(askBar.getClose() + (5 * instrument.getPipValue())), 0).waitForUpdate(5000);
-      //         engine.submitOrder(getLabel(instrument), instrument, OrderCommand.SELL, 0.02, askBar.getClose(), 3.0, getRoundedPrice(askBar.getClose() + (5 * instrument.getPipValue())), 0).waitForUpdate(5000);
-      //         engine.submitOrder(getLabel(instrument), instrument, OrderCommand.SELL, 0.02, askBar.getClose(), 3.0, getRoundedPrice(askBar.getClose() + (5 * instrument.getPipValue())), 0).waitForUpdate(5000);
-      //         engine.submitOrder(getLabel(instrument), instrument, OrderCommand.SELL, 0.02, askBar.getClose(), 3.0, getRoundedPrice(askBar.getClose() + (5 * instrument.getPipValue())), 0).waitForUpdate(5000);
-      //         engine.submitOrder(getLabel(instrument), instrument, OrderCommand.SELL, 0.02, askBar.getClose(), 3.0, getRoundedPrice(askBar.getClose() + (5 * instrument.getPipValue())), 0).waitForUpdate(5000);
-      //         engine.submitOrder(getLabel(instrument), instrument, OrderCommand.SELL, 0.02, askBar.getClose(), 3.0, getRoundedPrice(askBar.getClose() + (5 * instrument.getPipValue())), 0).waitForUpdate(5000);
-      //         engine.submitOrder(getLabel(instrument), instrument, OrderCommand.SELL, 0.02, askBar.getClose(), 3.0, getRoundedPrice(askBar.getClose() + (5 * instrument.getPipValue())), 0).waitForUpdate(5000);
-      //         this.breakoutLevel = askBar.getClose() - (10 * instrument.getPipValue());
+      //         engine.submitOrder(getLabel(instrument), instrument, OrderCommand.SELL, 0.02, askBar.getClose(), 3.0, getRoundedPrice(askBar.getClose() + (stopLossPips * instrument.getPipValue())), 0).waitForUpdate(5000);
+      //         engine.submitOrder(getLabel(instrument), instrument, OrderCommand.SELL, 0.02, askBar.getClose(), 3.0, getRoundedPrice(askBar.getClose() + (stopLossPips * instrument.getPipValue())), 0).waitForUpdate(5000);
+      //         engine.submitOrder(getLabel(instrument), instrument, OrderCommand.SELL, 0.02, askBar.getClose(), 3.0, getRoundedPrice(askBar.getClose() + (stopLossPips * instrument.getPipValue())), 0).waitForUpdate(5000);
+      //         engine.submitOrder(getLabel(instrument), instrument, OrderCommand.SELL, 0.02, askBar.getClose(), 3.0, getRoundedPrice(askBar.getClose() + (stopLossPips * instrument.getPipValue())), 0).waitForUpdate(5000);
+      //         engine.submitOrder(getLabel(instrument), instrument, OrderCommand.SELL, 0.02, askBar.getClose(), 3.0, getRoundedPrice(askBar.getClose() + (stopLossPips * instrument.getPipValue())), 0).waitForUpdate(5000);
+      //         engine.submitOrder(getLabel(instrument), instrument, OrderCommand.SELL, 0.02, askBar.getClose(), 3.0, getRoundedPrice(askBar.getClose() + (stopLossPips * instrument.getPipValue())), 0).waitForUpdate(5000);
+      //         engine.submitOrder(getLabel(instrument), instrument, OrderCommand.SELL, 0.02, askBar.getClose(), 3.0, getRoundedPrice(askBar.getClose() + (stopLossPips * instrument.getPipValue())), 0).waitForUpdate(5000);
+      //         engine.submitOrder(getLabel(instrument), instrument, OrderCommand.SELL, 0.02, askBar.getClose(), 3.0, getRoundedPrice(askBar.getClose() + (stopLossPips * instrument.getPipValue())), 0).waitForUpdate(5000);
+      //         engine.submitOrder(getLabel(instrument), instrument, OrderCommand.SELL, 0.02, askBar.getClose(), 3.0, getRoundedPrice(askBar.getClose() + (stopLossPips * instrument.getPipValue())), 0).waitForUpdate(5000);
+      //         engine.submitOrder(getLabel(instrument), instrument, OrderCommand.SELL, 0.02, askBar.getClose(), 3.0, getRoundedPrice(askBar.getClose() + (stopLossPips * instrument.getPipValue())), 0).waitForUpdate(5000);
+      //         this.breakoutLevel = askBar.getClose() - (7 * instrument.getPipValue());
       //         this.closeLimitLevel = 4;
       //         justChanged = true;
       //       }
       //       if (this.closeLimitLevel == 4 && !justChanged) {
-      //         engine.submitOrder(getLabel(instrument), instrument, OrderCommand.BUY, 0.02, askBar.getClose(), 3.0, getRoundedPrice(askBar.getClose() - (10 * instrument.getPipValue())), 0).waitForUpdate(5000);
-      //         engine.submitOrder(getLabel(instrument), instrument, OrderCommand.BUY, 0.02, askBar.getClose(), 3.0, getRoundedPrice(askBar.getClose() - (10 * instrument.getPipValue())), 0).waitForUpdate(5000);
-      //         engine.submitOrder(getLabel(instrument), instrument, OrderCommand.BUY, 0.02, askBar.getClose(), 3.0, getRoundedPrice(askBar.getClose() - (10 * instrument.getPipValue())), 0).waitForUpdate(5000);
-      //         engine.submitOrder(getLabel(instrument), instrument, OrderCommand.BUY, 0.02, askBar.getClose(), 3.0, getRoundedPrice(askBar.getClose() - (10 * instrument.getPipValue())), 0).waitForUpdate(5000);
-      //         engine.submitOrder(getLabel(instrument), instrument, OrderCommand.BUY, 0.02, askBar.getClose(), 3.0, getRoundedPrice(askBar.getClose() - (10 * instrument.getPipValue())), 0).waitForUpdate(5000);
-      //         engine.submitOrder(getLabel(instrument), instrument, OrderCommand.BUY, 0.02, askBar.getClose(), 3.0, getRoundedPrice(askBar.getClose() - (10 * instrument.getPipValue())), 0).waitForUpdate(5000);
-      //         engine.submitOrder(getLabel(instrument), instrument, OrderCommand.BUY, 0.02, askBar.getClose(), 3.0, getRoundedPrice(askBar.getClose() - (10 * instrument.getPipValue())), 0).waitForUpdate(5000);
-      //         engine.submitOrder(getLabel(instrument), instrument, OrderCommand.BUY, 0.02, askBar.getClose(), 3.0, getRoundedPrice(askBar.getClose() - (10 * instrument.getPipValue())), 0).waitForUpdate(5000);
-      //         engine.submitOrder(getLabel(instrument), instrument, OrderCommand.BUY, 0.02, askBar.getClose(), 3.0, getRoundedPrice(askBar.getClose() - (10 * instrument.getPipValue())), 0).waitForUpdate(5000);
-      //         engine.submitOrder(getLabel(instrument), instrument, OrderCommand.BUY, 0.02, askBar.getClose(), 3.0, getRoundedPrice(askBar.getClose() - (10 * instrument.getPipValue())), 0).waitForUpdate(5000);
-      //         this.breakoutLevel = askBar.getClose() + (10 * instrument.getPipValue());
+      //         engine.submitOrder(getLabel(instrument), instrument, OrderCommand.BUY, 0.02, askBar.getClose(), 3.0, getRoundedPrice(askBar.getClose() - (stopLossPips * instrument.getPipValue())), 0).waitForUpdate(5000);
+      //         engine.submitOrder(getLabel(instrument), instrument, OrderCommand.BUY, 0.02, askBar.getClose(), 3.0, getRoundedPrice(askBar.getClose() - (stopLossPips * instrument.getPipValue())), 0).waitForUpdate(5000);
+      //         engine.submitOrder(getLabel(instrument), instrument, OrderCommand.BUY, 0.02, askBar.getClose(), 3.0, getRoundedPrice(askBar.getClose() - (stopLossPips * instrument.getPipValue())), 0).waitForUpdate(5000);
+      //         engine.submitOrder(getLabel(instrument), instrument, OrderCommand.BUY, 0.02, askBar.getClose(), 3.0, getRoundedPrice(askBar.getClose() - (stopLossPips * instrument.getPipValue())), 0).waitForUpdate(5000);
+      //         engine.submitOrder(getLabel(instrument), instrument, OrderCommand.BUY, 0.02, askBar.getClose(), 3.0, getRoundedPrice(askBar.getClose() - (stopLossPips * instrument.getPipValue())), 0).waitForUpdate(5000);
+      //         engine.submitOrder(getLabel(instrument), instrument, OrderCommand.BUY, 0.02, askBar.getClose(), 3.0, getRoundedPrice(askBar.getClose() - (stopLossPips * instrument.getPipValue())), 0).waitForUpdate(5000);
+      //         engine.submitOrder(getLabel(instrument), instrument, OrderCommand.BUY, 0.02, askBar.getClose(), 3.0, getRoundedPrice(askBar.getClose() - (stopLossPips * instrument.getPipValue())), 0).waitForUpdate(5000);
+      //         engine.submitOrder(getLabel(instrument), instrument, OrderCommand.BUY, 0.02, askBar.getClose(), 3.0, getRoundedPrice(askBar.getClose() - (stopLossPips * instrument.getPipValue())), 0).waitForUpdate(5000);
+      //         engine.submitOrder(getLabel(instrument), instrument, OrderCommand.BUY, 0.02, askBar.getClose(), 3.0, getRoundedPrice(askBar.getClose() - (stopLossPips * instrument.getPipValue())), 0).waitForUpdate(5000);
+      //         engine.submitOrder(getLabel(instrument), instrument, OrderCommand.BUY, 0.02, askBar.getClose(), 3.0, getRoundedPrice(askBar.getClose() - (stopLossPips * instrument.getPipValue())), 0).waitForUpdate(5000);
+      //         this.breakoutLevel = askBar.getClose() + (7 * instrument.getPipValue());
       //         this.closeLimitLevel = 3;
       //       }
       //       IOrder firstOrder = engine.getOrders(this.instrument).get(0);
       //       this.initialStopPips = Math.abs((firstOrder.getOpenPrice() - firstOrder.getStopLossPrice()) / instrument.getPipValue());
+      //       this.breakoutDone = false;
       //       this.order1 = null;
       //       this.order2 = null;
       //       this.order3 = null;
@@ -246,7 +249,11 @@ public class TheSMAManager implements IStrategy {
           }
         }
 
+        if (breakoutLevel == -1) {
+          this.breakoutDone = true;
+        }
         if (breakoutLevel != -1 && (isLong() && bidBar.getClose() > breakoutLevel || !isLong() && askBar.getClose() < breakoutLevel)) {
+          this.breakoutDone = true;
           double bandForTrails = isLong() ? botFlashBand : topFlashBand;
           if ((isLong() && bidBar.getClose() > bandForTrails) || (!isLong() && askBar.getClose() < bandForTrails)) {
             IOrder firstOrder = engine.getOrders(this.instrument).get(0);
@@ -449,85 +456,85 @@ public class TheSMAManager implements IStrategy {
       }
 
       if (isLong()) {
-        if (this.order1 != null && this.order1.getState() == IOrder.State.FILLED && this.order1.getStopLossPrice() < botFastBand) {
+        if (this.order1 != null && this.order1.getState() == IOrder.State.FILLED && this.order1.getStopLossPrice() < botFastBand && this.breakoutDone) {
           this.order1.setStopLossPrice(botFastBand);
           this.order1.waitForUpdate(500);
         }
-        if (this.order2 != null && this.order2.getState() == IOrder.State.FILLED && this.order2.getStopLossPrice() < botBaseBand) {
+        if (this.order2 != null && this.order2.getState() == IOrder.State.FILLED && this.order2.getStopLossPrice() < botBaseBand && this.breakoutDone) {
           this.order2.setStopLossPrice(botBaseBand);
           this.order2.waitForUpdate(500);
         }
-        if (this.order3 != null && this.order3.getState() == IOrder.State.FILLED && this.order3.getStopLossPrice() < botSlowBand) {
+        if (this.order3 != null && this.order3.getState() == IOrder.State.FILLED && this.order3.getStopLossPrice() < botSlowBand && this.breakoutDone) {
           this.order3.setStopLossPrice(botSlowBand);
           this.order3.waitForUpdate(500);
         }
-        if (this.order4 != null && this.order4.getState() == IOrder.State.FILLED && this.order4.getStopLossPrice() < botFastBand2) {
+        if (this.order4 != null && this.order4.getState() == IOrder.State.FILLED && this.order4.getStopLossPrice() < botFastBand2 && this.breakoutDone) {
           this.order4.setStopLossPrice(botFastBand2);
           this.order4.waitForUpdate(500);
         }
-        if (this.order5 != null && this.order5.getState() == IOrder.State.FILLED && this.order5.getStopLossPrice() < botFastBand3) {
+        if (this.order5 != null && this.order5.getState() == IOrder.State.FILLED && this.order5.getStopLossPrice() < botFastBand3 && this.breakoutDone) {
           this.order5.setStopLossPrice(botFastBand3);
           this.order5.waitForUpdate(500);
         }
-        if (this.order6 != null && this.order6.getState() == IOrder.State.FILLED && this.order6.getStopLossPrice() < botFastBand4) {
+        if (this.order6 != null && this.order6.getState() == IOrder.State.FILLED && this.order6.getStopLossPrice() < botFastBand4 && this.breakoutDone) {
           this.order6.setStopLossPrice(botFastBand4);
           this.order6.waitForUpdate(500);
         }
-        if (this.order7 != null && this.order7.getState() == IOrder.State.FILLED && this.order7.getStopLossPrice() < botFastBand5) {
+        if (this.order7 != null && this.order7.getState() == IOrder.State.FILLED && this.order7.getStopLossPrice() < botFastBand5 && this.breakoutDone) {
           this.order7.setStopLossPrice(botFastBand5);
           this.order7.waitForUpdate(500);
         }
-        if (this.order8 != null && this.order8.getState() == IOrder.State.FILLED && this.order8.getStopLossPrice() < botFastBand6) {
+        if (this.order8 != null && this.order8.getState() == IOrder.State.FILLED && this.order8.getStopLossPrice() < botFastBand6 && this.breakoutDone) {
           this.order8.setStopLossPrice(botFastBand6);
           this.order8.waitForUpdate(500);
         }
-        if (this.order9 != null && this.order9.getState() == IOrder.State.FILLED && this.order9.getStopLossPrice() < botFastBand7) {
+        if (this.order9 != null && this.order9.getState() == IOrder.State.FILLED && this.order9.getStopLossPrice() < botFastBand7 && this.breakoutDone) {
           this.order9.setStopLossPrice(botFastBand7);
           this.order9.waitForUpdate(500);
         }
-        if (this.order10 != null && this.order10.getState() == IOrder.State.FILLED && this.order10.getStopLossPrice() < botFastBand8) {
+        if (this.order10 != null && this.order10.getState() == IOrder.State.FILLED && this.order10.getStopLossPrice() < botFastBand8 && this.breakoutDone) {
           this.order10.setStopLossPrice(botFastBand8);
           this.order10.waitForUpdate(500);
         }
       }
       if (!isLong()) {
-        if (this.order1 != null && this.order1.getState() == IOrder.State.FILLED && this.order1.getStopLossPrice() > topFastBand) {
+        if (this.order1 != null && this.order1.getState() == IOrder.State.FILLED && this.order1.getStopLossPrice() > topFastBand && this.breakoutDone) {
           this.order1.setStopLossPrice(topFastBand);
           this.order1.waitForUpdate(500);
         }
-        if (this.order2 != null && this.order2.getState() == IOrder.State.FILLED && this.order2.getStopLossPrice() > topBaseBand) {
+        if (this.order2 != null && this.order2.getState() == IOrder.State.FILLED && this.order2.getStopLossPrice() > topBaseBand && this.breakoutDone) {
           this.order2.setStopLossPrice(topBaseBand);
           this.order2.waitForUpdate(500);
         }
-        if (this.order3 != null && this.order3.getState() == IOrder.State.FILLED && this.order3.getStopLossPrice() > topSlowBand) {
+        if (this.order3 != null && this.order3.getState() == IOrder.State.FILLED && this.order3.getStopLossPrice() > topSlowBand && this.breakoutDone) {
           this.order3.setStopLossPrice(topSlowBand);
           this.order3.waitForUpdate(500);
         }
-        if (this.order4 != null && this.order4.getState() == IOrder.State.FILLED && this.order4.getStopLossPrice() > topFastBand2) {
+        if (this.order4 != null && this.order4.getState() == IOrder.State.FILLED && this.order4.getStopLossPrice() > topFastBand2 && this.breakoutDone) {
           this.order4.setStopLossPrice(topFastBand2);
           this.order4.waitForUpdate(500);
         }
-        if (this.order5 != null && this.order5.getState() == IOrder.State.FILLED && this.order5.getStopLossPrice() > topFastBand3) {
+        if (this.order5 != null && this.order5.getState() == IOrder.State.FILLED && this.order5.getStopLossPrice() > topFastBand3 && this.breakoutDone) {
           this.order5.setStopLossPrice(topFastBand3);
           this.order5.waitForUpdate(500);
         }
-        if (this.order6 != null && this.order6.getState() == IOrder.State.FILLED && this.order6.getStopLossPrice() > topFastBand4) {
+        if (this.order6 != null && this.order6.getState() == IOrder.State.FILLED && this.order6.getStopLossPrice() > topFastBand4 && this.breakoutDone) {
           this.order6.setStopLossPrice(topFastBand4);
           this.order6.waitForUpdate(500);
         }
-        if (this.order7 != null && this.order7.getState() == IOrder.State.FILLED && this.order7.getStopLossPrice() > topFastBand5) {
+        if (this.order7 != null && this.order7.getState() == IOrder.State.FILLED && this.order7.getStopLossPrice() > topFastBand5 && this.breakoutDone) {
           this.order7.setStopLossPrice(topFastBand5);
           this.order7.waitForUpdate(500);
         }
-        if (this.order8 != null && this.order8.getState() == IOrder.State.FILLED && this.order8.getStopLossPrice() > topFastBand6) {
+        if (this.order8 != null && this.order8.getState() == IOrder.State.FILLED && this.order8.getStopLossPrice() > topFastBand6 && this.breakoutDone) {
           this.order8.setStopLossPrice(topFastBand6);
           this.order8.waitForUpdate(500);
         }
-        if (this.order9 != null && this.order9.getState() == IOrder.State.FILLED && this.order9.getStopLossPrice() > topFastBand7) {
+        if (this.order9 != null && this.order9.getState() == IOrder.State.FILLED && this.order9.getStopLossPrice() > topFastBand7 && this.breakoutDone) {
           this.order9.setStopLossPrice(topFastBand7);
           this.order9.waitForUpdate(500);
         }
-        if (this.order10 != null && this.order10.getState() == IOrder.State.FILLED && this.order10.getStopLossPrice() > topFastBand8) {
+        if (this.order10 != null && this.order10.getState() == IOrder.State.FILLED && this.order10.getStopLossPrice() > topFastBand8 && this.breakoutDone) {
           this.order10.setStopLossPrice(topFastBand8);
           this.order10.waitForUpdate(500);
         }
