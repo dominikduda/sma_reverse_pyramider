@@ -23,6 +23,7 @@ public class TheSMAManager implements IStrategy {
     private IIndicators indicators;
     private IUserInterface userInterface;
 
+
     private int ordersCounter;
     private int entriesClosedByRiskManagement = 0;
     private double prevBandCached = -1;
@@ -39,11 +40,17 @@ public class TheSMAManager implements IStrategy {
 
     private boolean skipNextExtremeSell = false;
 
+
+    private double breakEvenLimit = -1;
+    private double secondLimit = -1;
+    private double thirdLimit = -1;
+    private double fourthLimit = -1;
+
     @Configurable("Instrument")
     public Instrument instrument = Instrument.EURUSD;
 
-    @Configurable("Breakout level")
-    public double breakoutLevel = -1;
+    // @Configurable("Breakout level")
+    // public double breakoutLevel = -1;
 
     public double prevBottomBand = -1;
     public double prevTopBand = -1;
@@ -61,6 +68,7 @@ public class TheSMAManager implements IStrategy {
 
 
     private double initialStopPips = -1;
+    private double referenceATR = 0;
     private boolean topBandStretched = false;
     private boolean bottomBandStretched = false;
     private boolean breakoutDone = false;
@@ -88,6 +96,8 @@ public class TheSMAManager implements IStrategy {
         }
         IOrder firstOrder = engine.getOrders(this.instrument).get(0);
         this.initialStopPips = Math.abs((firstOrder.getOpenPrice() - firstOrder.getStopLossPrice()) / instrument.getPipValue());
+        // uncomment for debug
+        // this.breakEvenLimit = 0;
     }
 
     public void onAccount(IAccount account) throws JFException {
@@ -170,6 +180,24 @@ public class TheSMAManager implements IStrategy {
           this.order10 = orders.get(9);
         }
 
+        if (ordersTotal > 0 && this.breakEvenLimit == -1) {
+          double lastATR = indicators.atr(this.instrument, Period.FIFTEEN_MINS, stopLossOfferSide(), 8, 1);
+          this.referenceATR = lastATR;
+          if (isLong()) {
+            this.breakEvenLimit = this.order1.getOpenPrice() + 2 * lastATR;
+            this.secondLimit = this.order1.getOpenPrice() + 3 * lastATR;
+            this.thirdLimit = this.order1.getOpenPrice() + 5 * lastATR;
+            this.fourthLimit = this.order1.getOpenPrice() + 7 * lastATR;
+          }
+          if (!isLong()) {
+            this.breakEvenLimit = this.order1.getOpenPrice() - 2 * lastATR;
+            this.secondLimit = this.order1.getOpenPrice() - 3 * lastATR;
+            this.thirdLimit = this.order1.getOpenPrice() - 5 * lastATR;
+            this.fourthLimit = this.order1.getOpenPrice() - 7 * lastATR;
+          }
+        }
+
+
 
         if(filledOrdersCount() == 0) {
           // comment for debug
@@ -178,19 +206,55 @@ public class TheSMAManager implements IStrategy {
     }
 
     public void onBar(Instrument instrument, Period period, IBar askBar, IBar bidBar) throws JFException {
-     if (instrument != this.instrument) {
-       return;
-     }
+       if (instrument != this.instrument || this.breakEvenLimit == -1) {
+         return;
+       }
       Period timeFrame = null;
 
       int ordersTotal = engine.getOrders(this.instrument).size();
+
+
+
+        if (ordersTotal > 0 && this.breakEvenLimit != -1 && period == Period.ONE_MIN) {
+          if (isLong()) {
+            if (bidBar.getClose() >= this.breakEvenLimit) {
+              setAllStopLossesTo(this.order1.getOpenPrice());
+            }
+            if (bidBar.getClose() >= this.secondLimit) {
+              setAllStopLossesTo(this.order1.getOpenPrice() + this.referenceATR);
+              this.breakoutDone = true;
+            }
+            if (bidBar.getClose() >= this.thirdLimit) {
+              setAllStopLossesTo(this.order1.getOpenPrice() + 2 * this.referenceATR);
+            }
+            if (bidBar.getClose() >= this.fourthLimit) {
+              setAllStopLossesTo(this.order1.getOpenPrice() + 3 * this.referenceATR);
+            }
+          }
+          if (!isLong()) {
+            if (askBar.getClose() <= this.breakEvenLimit) {
+              setAllStopLossesTo(this.order1.getOpenPrice());
+            }
+            if (askBar.getClose() <= this.secondLimit) {
+              setAllStopLossesTo(this.order1.getOpenPrice() - this.referenceATR);
+              this.breakoutDone = true;
+            }
+            if (askBar.getClose() <= this.thirdLimit) {
+              setAllStopLossesTo(this.order1.getOpenPrice() + - 2 * this.referenceATR);
+            }
+            if (askBar.getClose() <= this.fourthLimit) {
+              setAllStopLossesTo(this.order1.getOpenPrice() + - 3 * this.referenceATR);
+            }
+          }
+        }
+
 
       timeFrame = Period.FIFTEEN_MINS;
       // debug code
       // if (instrument == this.instrument && period == Period.FIFTEEN_MINS && ordersTotal == 0) {
       //       IBar lastBar = getBar(timeFrame, OfferSide.ASK, 1);
       //       boolean justChanged = false;
-      //       int stopLossPips = 15;
+      //       int stopLossPips = 5;
       //       if (this.closeLimitLevel == 3) {
       //         engine.submitOrder(getLabel(instrument), instrument, OrderCommand.SELL, 0.002, askBar.getClose(), 3.0, getRoundedPrice(askBar.getClose() + (stopLossPips * instrument.getPipValue())), 0).waitForUpdate(1000);
       //         engine.submitOrder(getLabel(instrument), instrument, OrderCommand.SELL, 0.002, askBar.getClose(), 3.0, getRoundedPrice(askBar.getClose() + (stopLossPips * instrument.getPipValue())), 0).waitForUpdate(1000);
@@ -202,7 +266,6 @@ public class TheSMAManager implements IStrategy {
       //         engine.submitOrder(getLabel(instrument), instrument, OrderCommand.SELL, 0.002, askBar.getClose(), 3.0, getRoundedPrice(askBar.getClose() + (stopLossPips * instrument.getPipValue())), 0).waitForUpdate(1000);
       //         engine.submitOrder(getLabel(instrument), instrument, OrderCommand.SELL, 0.002, askBar.getClose(), 3.0, getRoundedPrice(askBar.getClose() + (stopLossPips * instrument.getPipValue())), 0).waitForUpdate(1000);
       //         engine.submitOrder(getLabel(instrument), instrument, OrderCommand.SELL, 0.002, askBar.getClose(), 3.0, getRoundedPrice(askBar.getClose() + (stopLossPips * instrument.getPipValue())), 0).waitForUpdate(1000);
-      //         this.breakoutLevel = askBar.getClose() - (15 * instrument.getPipValue());
       //         this.closeLimitLevel = 4;
       //         justChanged = true;
       //       }
@@ -217,7 +280,6 @@ public class TheSMAManager implements IStrategy {
       //         engine.submitOrder(getLabel(instrument), instrument, OrderCommand.BUY, 0.002, askBar.getClose(), 3.0, getRoundedPrice(askBar.getClose() - (stopLossPips * instrument.getPipValue())), 0).waitForUpdate(1000);
       //         engine.submitOrder(getLabel(instrument), instrument, OrderCommand.BUY, 0.002, askBar.getClose(), 3.0, getRoundedPrice(askBar.getClose() - (stopLossPips * instrument.getPipValue())), 0).waitForUpdate(1000);
       //         engine.submitOrder(getLabel(instrument), instrument, OrderCommand.BUY, 0.002, askBar.getClose(), 3.0, getRoundedPrice(askBar.getClose() - (stopLossPips * instrument.getPipValue())), 0).waitForUpdate(1000);
-      //         this.breakoutLevel = askBar.getClose() + (15 * instrument.getPipValue());
       //         this.closeLimitLevel = 3;
       //       }
       //       IOrder firstOrder = engine.getOrders(this.instrument).get(0);
@@ -234,45 +296,54 @@ public class TheSMAManager implements IStrategy {
       //       this.order8 = null;
       //       this.order9 = null;
       //       this.order10 = null;
+      //       this.breakEvenLimit = -1;
+      //       this.secondLimit = -1;
+      //       this.thirdLimit = -1;
+      //       this.fourthLimit = -1;
+      //       this.referenceATR = 0;
       //       return;
       // }
 
-      if (period == Period.ONE_MIN && ordersTotal > 0) {
-        List<IBar> askBarsM5 = history.getBars(instrument, Period.ONE_MIN, OfferSide.ASK, Filter.WEEKENDS, 20, askBar.getTime(), 0);
-        List<IBar> bidBarsM5 = history.getBars(instrument, Period.ONE_MIN, OfferSide.BID, Filter.WEEKENDS, 20, askBar.getTime(), 0);
-        IOrder firstOrder = engine.getOrders(this.instrument).get(0);
 
-        double topFlashBand = Double.NEGATIVE_INFINITY;
-        for (IBar bar : askBarsM5) {
-          if (bar.getHigh() > topFlashBand) {
-            topFlashBand = bar.getHigh();
-          }
-        }
-        double botFlashBand = Double.POSITIVE_INFINITY;
-        for (IBar bar : bidBarsM5) {
-          if (bar.getLow() < botFlashBand) {
-            botFlashBand = bar.getLow();
-          }
-        }
-        if (isLong() && botFlashBand > firstOrder.getOpenPrice()) {
-          botFlashBand = firstOrder.getOpenPrice();
-        }
-        if (!isLong() && topFlashBand < firstOrder.getOpenPrice()) {
-          topFlashBand = firstOrder.getOpenPrice();
-        }
 
-        if (breakoutLevel == -1) {
-          this.breakoutDone = true;
-        }
-        if (breakoutLevel != -1 && (isLong() && bidBar.getClose() > breakoutLevel || !isLong() && askBar.getClose() < breakoutLevel) && !this.breakoutDone) {
-          double bandForTrails = isLong() ? botFlashBand : topFlashBand;
-          double currentStopLossPips = Math.abs(firstOrder.getOpenPrice() - firstOrder.getStopLossPrice()) / instrument.getPipValue();
-          if ((isLong() && firstOrder.getOpenPrice() >= firstOrder.getStopLossPrice()) || (!isLong() && firstOrder.getOpenPrice() <= firstOrder.getStopLossPrice()))  {
-            setAllStopLossesTo(bandForTrails);
-            this.breakoutDone = true;
-          }
-        }
-      }
+
+
+      // if (period == Period.ONE_MIN && ordersTotal > 0) {
+      //   List<IBar> askBarsM5 = history.getBars(instrument, Period.ONE_MIN, OfferSide.ASK, Filter.WEEKENDS, 20, askBar.getTime(), 0);
+      //   List<IBar> bidBarsM5 = history.getBars(instrument, Period.ONE_MIN, OfferSide.BID, Filter.WEEKENDS, 20, askBar.getTime(), 0);
+      //   IOrder firstOrder = engine.getOrders(this.instrument).get(0);
+
+      //   double topFlashBand = Double.NEGATIVE_INFINITY;
+      //   for (IBar bar : askBarsM5) {
+      //     if (bar.getHigh() > topFlashBand) {
+      //       topFlashBand = bar.getHigh();
+      //     }
+      //   }
+      //   double botFlashBand = Double.POSITIVE_INFINITY;
+      //   for (IBar bar : bidBarsM5) {
+      //     if (bar.getLow() < botFlashBand) {
+      //       botFlashBand = bar.getLow();
+      //     }
+      //   }
+      //   if (isLong() && botFlashBand > firstOrder.getOpenPrice()) {
+      //     botFlashBand = firstOrder.getOpenPrice();
+      //   }
+      //   if (!isLong() && topFlashBand < firstOrder.getOpenPrice()) {
+      //     topFlashBand = firstOrder.getOpenPrice();
+      //   }
+
+      //   if (breakoutLevel == -1) {
+      //     this.breakoutDone = true;
+      //   }
+      //   if (breakoutLevel != -1 && (isLong() && bidBar.getClose() > breakoutLevel || !isLong() && askBar.getClose() < breakoutLevel) && !this.breakoutDone) {
+      //     double bandForTrails = isLong() ? botFlashBand : topFlashBand;
+      //     double currentStopLossPips = Math.abs(firstOrder.getOpenPrice() - firstOrder.getStopLossPrice()) / instrument.getPipValue();
+      //     if ((isLong() && firstOrder.getOpenPrice() >= firstOrder.getStopLossPrice()) || (!isLong() && firstOrder.getOpenPrice() <= firstOrder.getStopLossPrice()))  {
+      //       setAllStopLossesTo(bandForTrails);
+      //       this.breakoutDone = true;
+      //     }
+      //   }
+      // }
 
 
       if (period != Period.FIFTEEN_MINS) {
@@ -303,7 +374,7 @@ public class TheSMAManager implements IStrategy {
         this.topBandStretched = true;
         console.getOut().println("Górna banda przebita");
       }
-      if (isLong() && this.topBandStretched && bidBar.getClose() < bidBar.getOpen()) {
+      if (isLong() && this.topBandStretched && bidBar.getClose() < bidBar.getOpen() && bidBar.getClose() >= this.secondLimit) {
         if (this.skipNextExtremeSell) {
           this.skipNextExtremeSell = false;
           this.topBandStretched = false;
@@ -321,8 +392,8 @@ public class TheSMAManager implements IStrategy {
             }
           }
         }
-      }
-      if (!isLong() && this.bottomBandStretched && askBar.getClose() > askBar.getOpen()) {
+      };
+      if (!isLong() && this.bottomBandStretched && askBar.getClose() > askBar.getOpen() && askBar.getClose() <= this.secondLimit) {
         if (this.skipNextExtremeSell) {
           this.bottomBandStretched = false;
           this.skipNextExtremeSell = false;
@@ -548,7 +619,6 @@ public class TheSMAManager implements IStrategy {
       if (!isLong()) {
 
         if (this.order1 != null && this.order1.getState() == IOrder.State.FILLED && this.order1.getStopLossPrice() > topFastBand && this.breakoutDone) {
-          console.getOut().println(this.order1.getState());
           this.order1.setStopLossPrice(topFastBand);
           this.order1.waitForUpdate(2000);
           this.order1.waitForUpdate(2000);
@@ -738,10 +808,10 @@ public class TheSMAManager implements IStrategy {
 
   void setAllStopLossesTo(double price) throws JFException {
     for (IOrder order : engine.getOrders(this.instrument)) {
-      if (isLong() && price > order.getStopLossPrice()) {
+      if (isLong() && getRoundedPrice(price) > order.getStopLossPrice()) {
         order.setStopLossPrice(getRoundedPrice(price));
       }
-      if (!isLong() && price < order.getStopLossPrice()) {
+      if (!isLong() && getRoundedPrice(price) < order.getStopLossPrice()) {
         order.setStopLossPrice(getRoundedPrice(price));
       }
       order.waitForUpdate(2000);
