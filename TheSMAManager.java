@@ -91,13 +91,13 @@ public class TheSMAManager implements IStrategy {
         int ordersTotal = engine.getOrders(this.instrument).size();
 
         // comment_for_debug
-        if (ordersTotal < 1) {
-          throw new JFException("1 or more orders needed!");
-        }
-        IOrder firstOrder = engine.getOrders(this.instrument).get(0);
-        this.initialStopPips = Math.abs((firstOrder.getOpenPrice() - firstOrder.getStopLossPrice()) / instrument.getPipValue());
+        // if (ordersTotal < 1) {
+        //   throw new JFException("1 or more orders needed!");
+        // }
+        // IOrder firstOrder = engine.getOrders(this.instrument).get(0);
+        // this.initialStopPips = Math.abs((firstOrder.getOpenPrice() - firstOrder.getStopLossPrice()) / instrument.getPipValue());
         // uncomment for debug
-        // this.breakEvenLimit = 0;
+        this.breakEvenLimit = 0;
     }
 
     public void onAccount(IAccount account) throws JFException {
@@ -117,6 +117,7 @@ public class TheSMAManager implements IStrategy {
                     break;
                 case ORDER_SUBMIT_OK:
                 case ORDER_CLOSE_OK:
+
                 case ORDERS_MERGE_OK:
                     //console.getInfo().println(orderLabel +" "+ messageType);
                     break;
@@ -201,7 +202,7 @@ public class TheSMAManager implements IStrategy {
 
         if(filledOrdersCount() == 0) {
           // comment for debug
-          context.stop();
+          // context.stop();
         }
     }
 
@@ -251,58 +252,58 @@ public class TheSMAManager implements IStrategy {
 
       timeFrame = Period.FIFTEEN_MINS;
       // debug code
-      // if (instrument == this.instrument && period == Period.FIFTEEN_MINS && ordersTotal == 0) {
-      //       IBar lastBar = getBar(timeFrame, OfferSide.ASK, 1);
-      //       boolean justChanged = false;
-      //       int stopLossPips = 5;
-      //       if (this.closeLimitLevel == 3) {
-      //         engine.submitOrder(getLabel(instrument), instrument, OrderCommand.SELL, 0.002, askBar.getClose(), 3.0, getRoundedPrice(askBar.getClose() + (stopLossPips * instrument.getPipValue())), 0).waitForUpdate(1000);
-      //         engine.submitOrder(getLabel(instrument), instrument, OrderCommand.SELL, 0.002, askBar.getClose(), 3.0, getRoundedPrice(askBar.getClose() + (stopLossPips * instrument.getPipValue())), 0).waitForUpdate(1000);
-      //         engine.submitOrder(getLabel(instrument), instrument, OrderCommand.SELL, 0.002, askBar.getClose(), 3.0, getRoundedPrice(askBar.getClose() + (stopLossPips * instrument.getPipValue())), 0).waitForUpdate(1000);
-      //         engine.submitOrder(getLabel(instrument), instrument, OrderCommand.SELL, 0.002, askBar.getClose(), 3.0, getRoundedPrice(askBar.getClose() + (stopLossPips * instrument.getPipValue())), 0).waitForUpdate(1000);
-      //         engine.submitOrder(getLabel(instrument), instrument, OrderCommand.SELL, 0.002, askBar.getClose(), 3.0, getRoundedPrice(askBar.getClose() + (stopLossPips * instrument.getPipValue())), 0).waitForUpdate(1000);
-      //         engine.submitOrder(getLabel(instrument), instrument, OrderCommand.SELL, 0.002, askBar.getClose(), 3.0, getRoundedPrice(askBar.getClose() + (stopLossPips * instrument.getPipValue())), 0).waitForUpdate(1000);
-      //         engine.submitOrder(getLabel(instrument), instrument, OrderCommand.SELL, 0.002, askBar.getClose(), 3.0, getRoundedPrice(askBar.getClose() + (stopLossPips * instrument.getPipValue())), 0).waitForUpdate(1000);
-      //         engine.submitOrder(getLabel(instrument), instrument, OrderCommand.SELL, 0.002, askBar.getClose(), 3.0, getRoundedPrice(askBar.getClose() + (stopLossPips * instrument.getPipValue())), 0).waitForUpdate(1000);
-      //         engine.submitOrder(getLabel(instrument), instrument, OrderCommand.SELL, 0.002, askBar.getClose(), 3.0, getRoundedPrice(askBar.getClose() + (stopLossPips * instrument.getPipValue())), 0).waitForUpdate(1000);
-      //         engine.submitOrder(getLabel(instrument), instrument, OrderCommand.SELL, 0.002, askBar.getClose(), 3.0, getRoundedPrice(askBar.getClose() + (stopLossPips * instrument.getPipValue())), 0).waitForUpdate(1000);
-      //         this.closeLimitLevel = 4;
-      //         justChanged = true;
-      //       }
-      //       if (this.closeLimitLevel == 4 && !justChanged) {
-      //         engine.submitOrder(getLabel(instrument), instrument, OrderCommand.BUY, 0.002, askBar.getClose(), 3.0, getRoundedPrice(askBar.getClose() - (stopLossPips * instrument.getPipValue())), 0).waitForUpdate(1000);
-      //         engine.submitOrder(getLabel(instrument), instrument, OrderCommand.BUY, 0.002, askBar.getClose(), 3.0, getRoundedPrice(askBar.getClose() - (stopLossPips * instrument.getPipValue())), 0).waitForUpdate(1000);
-      //         engine.submitOrder(getLabel(instrument), instrument, OrderCommand.BUY, 0.002, askBar.getClose(), 3.0, getRoundedPrice(askBar.getClose() - (stopLossPips * instrument.getPipValue())), 0).waitForUpdate(1000);
-      //         engine.submitOrder(getLabel(instrument), instrument, OrderCommand.BUY, 0.002, askBar.getClose(), 3.0, getRoundedPrice(askBar.getClose() - (stopLossPips * instrument.getPipValue())), 0).waitForUpdate(1000);
-      //         engine.submitOrder(getLabel(instrument), instrument, OrderCommand.BUY, 0.002, askBar.getClose(), 3.0, getRoundedPrice(askBar.getClose() - (stopLossPips * instrument.getPipValue())), 0).waitForUpdate(1000);
-      //         engine.submitOrder(getLabel(instrument), instrument, OrderCommand.BUY, 0.002, askBar.getClose(), 3.0, getRoundedPrice(askBar.getClose() - (stopLossPips * instrument.getPipValue())), 0).waitForUpdate(1000);
-      //         engine.submitOrder(getLabel(instrument), instrument, OrderCommand.BUY, 0.002, askBar.getClose(), 3.0, getRoundedPrice(askBar.getClose() - (stopLossPips * instrument.getPipValue())), 0).waitForUpdate(1000);
-      //         engine.submitOrder(getLabel(instrument), instrument, OrderCommand.BUY, 0.002, askBar.getClose(), 3.0, getRoundedPrice(askBar.getClose() - (stopLossPips * instrument.getPipValue())), 0).waitForUpdate(1000);
-      //         engine.submitOrder(getLabel(instrument), instrument, OrderCommand.BUY, 0.002, askBar.getClose(), 3.0, getRoundedPrice(askBar.getClose() - (stopLossPips * instrument.getPipValue())), 0).waitForUpdate(1000);
-      //         engine.submitOrder(getLabel(instrument), instrument, OrderCommand.BUY, 0.002, askBar.getClose(), 3.0, getRoundedPrice(askBar.getClose() - (stopLossPips * instrument.getPipValue())), 0).waitForUpdate(1000);
-      //         this.closeLimitLevel = 3;
-      //       }
-      //       IOrder firstOrder = engine.getOrders(this.instrument).get(0);
-      //       this.initialStopPips = Math.abs((firstOrder.getOpenPrice() - firstOrder.getStopLossPrice()) / instrument.getPipValue());
-      //       this.breakoutDone = false;
-      //       this.skipNextExtremeSell = false;
-      //       this.order1 = null;
-      //       this.order2 = null;
-      //       this.order3 = null;
-      //       this.order4 = null;
-      //       this.order5 = null;
-      //       this.order6 = null;
-      //       this.order7 = null;
-      //       this.order8 = null;
-      //       this.order9 = null;
-      //       this.order10 = null;
-      //       this.breakEvenLimit = -1;
-      //       this.secondLimit = -1;
-      //       this.thirdLimit = -1;
-      //       this.fourthLimit = -1;
-      //       this.referenceATR = 0;
-      //       return;
-      // }
+      if (instrument == this.instrument && period == Period.FIFTEEN_MINS && ordersTotal == 0) {
+            IBar lastBar = getBar(timeFrame, OfferSide.ASK, 1);
+            boolean justChanged = false;
+            int stopLossPips = 5;
+            if (this.closeLimitLevel == 3) {
+              engine.submitOrder(getLabel(instrument), instrument, OrderCommand.SELL, 0.002, askBar.getClose(), 3.0, getRoundedPrice(askBar.getClose() + (stopLossPips * instrument.getPipValue())), 0).waitForUpdate(1000);
+              engine.submitOrder(getLabel(instrument), instrument, OrderCommand.SELL, 0.002, askBar.getClose(), 3.0, getRoundedPrice(askBar.getClose() + (stopLossPips * instrument.getPipValue())), 0).waitForUpdate(1000);
+              engine.submitOrder(getLabel(instrument), instrument, OrderCommand.SELL, 0.002, askBar.getClose(), 3.0, getRoundedPrice(askBar.getClose() + (stopLossPips * instrument.getPipValue())), 0).waitForUpdate(1000);
+              engine.submitOrder(getLabel(instrument), instrument, OrderCommand.SELL, 0.002, askBar.getClose(), 3.0, getRoundedPrice(askBar.getClose() + (stopLossPips * instrument.getPipValue())), 0).waitForUpdate(1000);
+              engine.submitOrder(getLabel(instrument), instrument, OrderCommand.SELL, 0.002, askBar.getClose(), 3.0, getRoundedPrice(askBar.getClose() + (stopLossPips * instrument.getPipValue())), 0).waitForUpdate(1000);
+              engine.submitOrder(getLabel(instrument), instrument, OrderCommand.SELL, 0.002, askBar.getClose(), 3.0, getRoundedPrice(askBar.getClose() + (stopLossPips * instrument.getPipValue())), 0).waitForUpdate(1000);
+              engine.submitOrder(getLabel(instrument), instrument, OrderCommand.SELL, 0.002, askBar.getClose(), 3.0, getRoundedPrice(askBar.getClose() + (stopLossPips * instrument.getPipValue())), 0).waitForUpdate(1000);
+              engine.submitOrder(getLabel(instrument), instrument, OrderCommand.SELL, 0.002, askBar.getClose(), 3.0, getRoundedPrice(askBar.getClose() + (stopLossPips * instrument.getPipValue())), 0).waitForUpdate(1000);
+              engine.submitOrder(getLabel(instrument), instrument, OrderCommand.SELL, 0.002, askBar.getClose(), 3.0, getRoundedPrice(askBar.getClose() + (stopLossPips * instrument.getPipValue())), 0).waitForUpdate(1000);
+              engine.submitOrder(getLabel(instrument), instrument, OrderCommand.SELL, 0.002, askBar.getClose(), 3.0, getRoundedPrice(askBar.getClose() + (stopLossPips * instrument.getPipValue())), 0).waitForUpdate(1000);
+              this.closeLimitLevel = 4;
+              justChanged = true;
+            }
+            if (this.closeLimitLevel == 4 && !justChanged) {
+              engine.submitOrder(getLabel(instrument), instrument, OrderCommand.BUY, 0.002, askBar.getClose(), 3.0, getRoundedPrice(askBar.getClose() - (stopLossPips * instrument.getPipValue())), 0).waitForUpdate(1000);
+              engine.submitOrder(getLabel(instrument), instrument, OrderCommand.BUY, 0.002, askBar.getClose(), 3.0, getRoundedPrice(askBar.getClose() - (stopLossPips * instrument.getPipValue())), 0).waitForUpdate(1000);
+              engine.submitOrder(getLabel(instrument), instrument, OrderCommand.BUY, 0.002, askBar.getClose(), 3.0, getRoundedPrice(askBar.getClose() - (stopLossPips * instrument.getPipValue())), 0).waitForUpdate(1000);
+              engine.submitOrder(getLabel(instrument), instrument, OrderCommand.BUY, 0.002, askBar.getClose(), 3.0, getRoundedPrice(askBar.getClose() - (stopLossPips * instrument.getPipValue())), 0).waitForUpdate(1000);
+              engine.submitOrder(getLabel(instrument), instrument, OrderCommand.BUY, 0.002, askBar.getClose(), 3.0, getRoundedPrice(askBar.getClose() - (stopLossPips * instrument.getPipValue())), 0).waitForUpdate(1000);
+              engine.submitOrder(getLabel(instrument), instrument, OrderCommand.BUY, 0.002, askBar.getClose(), 3.0, getRoundedPrice(askBar.getClose() - (stopLossPips * instrument.getPipValue())), 0).waitForUpdate(1000);
+              engine.submitOrder(getLabel(instrument), instrument, OrderCommand.BUY, 0.002, askBar.getClose(), 3.0, getRoundedPrice(askBar.getClose() - (stopLossPips * instrument.getPipValue())), 0).waitForUpdate(1000);
+              engine.submitOrder(getLabel(instrument), instrument, OrderCommand.BUY, 0.002, askBar.getClose(), 3.0, getRoundedPrice(askBar.getClose() - (stopLossPips * instrument.getPipValue())), 0).waitForUpdate(1000);
+              engine.submitOrder(getLabel(instrument), instrument, OrderCommand.BUY, 0.002, askBar.getClose(), 3.0, getRoundedPrice(askBar.getClose() - (stopLossPips * instrument.getPipValue())), 0).waitForUpdate(1000);
+              engine.submitOrder(getLabel(instrument), instrument, OrderCommand.BUY, 0.002, askBar.getClose(), 3.0, getRoundedPrice(askBar.getClose() - (stopLossPips * instrument.getPipValue())), 0).waitForUpdate(1000);
+              this.closeLimitLevel = 3;
+            }
+            IOrder firstOrder = engine.getOrders(this.instrument).get(0);
+            this.initialStopPips = Math.abs((firstOrder.getOpenPrice() - firstOrder.getStopLossPrice()) / instrument.getPipValue());
+            this.breakoutDone = false;
+            this.skipNextExtremeSell = false;
+            this.order1 = null;
+            this.order2 = null;
+            this.order3 = null;
+            this.order4 = null;
+            this.order5 = null;
+            this.order6 = null;
+            this.order7 = null;
+            this.order8 = null;
+            this.order9 = null;
+            this.order10 = null;
+            this.breakEvenLimit = -1;
+            this.secondLimit = -1;
+            this.thirdLimit = -1;
+            this.fourthLimit = -1;
+            this.referenceATR = 0;
+            return;
+      }
 
 
 
