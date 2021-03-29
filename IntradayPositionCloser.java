@@ -24,7 +24,14 @@ public class IntradayPositionCloser implements IStrategy {
   @Configurable("Safety limit level for close")
   public double limitLevelForClose = -1;
 
+  @Configurable("Minimal profit pips")
+  public double minimalProfitPips = 2;
+
+  @Configurable("Ignore initial candle for 'reverse color' close")
+  public boolean ignoreInitialCandle = false;
+
   private int closedM15CandlesTillBotStart = 0;
+  private boolean shouldCloseAllOrders = false;
 
   public void onStart(IContext context) throws JFException {
     if (instrument == null) {
@@ -92,6 +99,10 @@ public class IntradayPositionCloser implements IStrategy {
       console.getOut().println("No orders present. Script stopped.");
       context.stop();
     }
+
+    if (this.shouldCloseAllOrders) {
+      closeAllOrders();
+    }
   }
 
   public void onBar(Instrument instrument, Period period, IBar askBar, IBar bidBar) throws JFException {
@@ -141,18 +152,19 @@ public class IntradayPositionCloser implements IStrategy {
     // handle opposite bar in profit
     IOrder sampleOrder = engine.getOrders(this.instrument).get(0);
     IBar relevantBar = null;
-    if (isLong()) {
+    boolean skipCheckForThisCandle = ignoreInitialCandle && this.closedM15CandlesTillBotStart == 1;
+    if (isLong() && !skipCheckForThisCandle) {
       relevantBar = bidBar;
       boolean isRed = relevantBar.getClose() <= relevantBar.getOpen();
-      if (sampleOrder.getProfitLossInPips() > 0 && isRed) {
+      if (sampleOrder.getProfitLossInPips() > minimalProfitPips && isRed) {
         console.getOut().println("Red bar closing on profit detected. Exiting position");
         closeAllOrders();
       }
     }
-    if (!isLong()) {
+    if (!isLong() && !skipCheckForThisCandle) {
       relevantBar = askBar;
       boolean isGreen = relevantBar.getClose() >= relevantBar.getOpen();
-      if (sampleOrder.getProfitLossInPips() > 0 && isGreen) {
+      if (sampleOrder.getProfitLossInPips() > minimalProfitPips && isGreen) {
         console.getOut().println("Green bar closing on profit detected. Exiting position");
         closeAllOrders();
       }
@@ -169,6 +181,7 @@ public class IntradayPositionCloser implements IStrategy {
     for (IOrder order : engine.getOrders(this.instrument)) {
       order.close();
     }
+    this.shouldCloseAllOrders = true;
   }
 
   protected int filledOrdersCount() throws JFException {
