@@ -6,6 +6,7 @@ import java.text.*;
 import java.util.*;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.Random;
 
 public class IntradayPositionCloser implements IStrategy {
   private IEngine engine;
@@ -33,18 +34,20 @@ public class IntradayPositionCloser implements IStrategy {
   private int closedM15CandlesTillBotStart = 0;
   private boolean shouldCloseAllOrders = false;
 
+  private double extremeForTrail = -1;
+
   public void onStart(IContext context) throws JFException {
     if (instrument == null) {
       throw new JFException("You must provide instrumetnt");
     }
-    if (limitLevelFor7Bars == -1) {
-      throw new JFException("You must provide limit level for 8 bars");
-    }
+    // if (limitLevelFor7Bars == -1) {
+    //   throw new JFException("You must provide limit level for 8 bars");
+    // }
+    this.console = context.getConsole();
     if (limitLevelForClose == -1) {
-      throw new JFException("You must provide safety limit level for close");
+      console.getOut().println("Exit after close flips level disabled by argument (-1)");
     }
     this.engine = context.getEngine();
-    this.console = context.getConsole();
     this.history = context.getHistory();
     this.context = context;
     this.indicators = context.getIndicators();
@@ -53,6 +56,20 @@ public class IntradayPositionCloser implements IStrategy {
     Set subscribedInstruments = new HashSet();
     subscribedInstruments.add(this.instrument);
     context.setSubscribedInstruments(subscribedInstruments);
+    Random rand = new Random();
+    // between 0 and 99
+    int n = rand.nextInt(100);
+    // close more then half of trades at 4.5 pips profit
+    if (n > 45) {
+      console.getOut().println("Randomed this order to use 4.5 pips TP");
+      IOrder sampleOrder = engine.getOrders(this.instrument).get(0);
+      if (isLong()) {
+        setAllTakeProfitsTo(sampleOrder.getOpenPrice() + instrument.getPipValue() * 4.5);
+      }
+      if (!isLong()) {
+        setAllTakeProfitsTo(sampleOrder.getOpenPrice() - instrument.getPipValue() * 4.5);
+      }
+    }
   }
 
   public void onAccount(IAccount account) throws JFException {}
@@ -115,37 +132,41 @@ public class IntradayPositionCloser implements IStrategy {
     }
 
     // handle close in loss because limit level exceeded
-    IBar relevantBarForClose = null;
-    if (isLong()) {
-      relevantBarForClose = bidBar;
-      if (relevantBarForClose.getClose() <= limitLevelForClose) {
-        console.getOut().println("Close not above the safety. Exiting position.");
-        closeAllOrders();
+    if (limitLevelForClose != -1) { // disabled - for mini stop
+      IBar relevantBarForClose = null;
+      if (isLong()) {
+        relevantBarForClose = bidBar;
+        if (relevantBarForClose.getClose() <= limitLevelForClose) {
+          console.getOut().println("Close not above the safety. Exiting position.");
+          closeAllOrders();
+        }
       }
-    }
-    if (!isLong()) {
-      relevantBarForClose = askBar;
-      if (relevantBarForClose.getClose() >= limitLevelForClose) {
-        console.getOut().println("Close not below the safety level. Exiting position.");
-        closeAllOrders();
+      if (!isLong()) {
+        relevantBarForClose = askBar;
+        if (relevantBarForClose.getClose() >= limitLevelForClose) {
+          console.getOut().println("Close not below the safety level. Exiting position.");
+          closeAllOrders();
+        }
       }
     }
 
     // handle time out by 7 candles close
     this.closedM15CandlesTillBotStart++;
-    IBar relevantBarForTimeout = null;
-    if (isLong() && closedM15CandlesTillBotStart == 7) {
-      relevantBarForTimeout = bidBar;
-      if (relevantBarForTimeout.getClose() < limitLevelFor7Bars) {
-        console.getOut().println("Too little profit in 7 candles. Exiting position.");
-        closeAllOrders();
+    if (limitLevelFor7Bars != -1) {
+      IBar relevantBarForTimeout = null;
+      if (isLong() && closedM15CandlesTillBotStart == 7) {
+        relevantBarForTimeout = bidBar;
+        if (relevantBarForTimeout.getClose() < limitLevelFor7Bars) {
+          console.getOut().println("Too little profit in 7 candles. Exiting position.");
+          closeAllOrders();
+        }
       }
-    }
-    if (!isLong() && closedM15CandlesTillBotStart == 7) {
-      relevantBarForTimeout = askBar;
-      if (relevantBarForTimeout.getClose() > limitLevelFor7Bars) {
-        console.getOut().println("Too little profit in 7 candles. Exiting position.");
-        closeAllOrders();
+      if (!isLong() && closedM15CandlesTillBotStart == 7) {
+        relevantBarForTimeout = askBar;
+        if (relevantBarForTimeout.getClose() > limitLevelFor7Bars) {
+          console.getOut().println("Too little profit in 7 candles. Exiting position.");
+          closeAllOrders();
+        }
       }
     }
 
@@ -210,6 +231,14 @@ public class IntradayPositionCloser implements IStrategy {
       if (!isLong() && getRoundedPrice(price) < order.getStopLossPrice()) {
         order.setStopLossPrice(getRoundedPrice(price));
       }
+      order.waitForUpdate(2000);
+      order.waitForUpdate(2000);
+    }
+  }
+
+  void setAllTakeProfitsTo(double price) throws JFException {
+    for (IOrder order : engine.getOrders(this.instrument)) {
+      order.setTakeProfitPrice(price);
       order.waitForUpdate(2000);
       order.waitForUpdate(2000);
     }
