@@ -2,6 +2,7 @@ package jforex;
 
 import com.dukascopy.api.*;
 import java.math.*;
+import com.dukascopy.api.IEngine.OrderCommand;
 import java.text.*;
 import java.util.*;
 import java.util.HashSet;
@@ -25,6 +26,13 @@ public class RocOwner implements IStrategy {
   private boolean shouldCloseAllOrders = false;
 
   private double extremeForTrail = -1;
+
+  private boolean entrySignalForLong = false;
+  private boolean entrySignalForShort = false;
+  private boolean prevIsUptrend = false;
+  private int ordersCounter = 0;
+  private int longSignalValidity = 8;
+  private int shortSignalValidity = 8;
 
   public void onStart(IContext context) throws JFException {
     if (instrument == null) {
@@ -98,9 +106,87 @@ public class RocOwner implements IStrategy {
       return;
     }
 
+    double prevEMAflash =
+        indicators.ema(
+            instrument, Period.FIFTEEN_MINS, OfferSide.BID, IIndicators.AppliedPrice.CLOSE, 5, 0);
+    double prevPrevEMAflash =
+        indicators.ema(
+            instrument, Period.FIFTEEN_MINS, OfferSide.BID, IIndicators.AppliedPrice.CLOSE, 5, 1);
+    double prevEMAslow =
+        indicators.ema(
+            instrument, Period.FIFTEEN_MINS, OfferSide.BID, IIndicators.AppliedPrice.CLOSE, 33, 0);
+    double prevPrevEMAslow =
+        indicators.ema(
+            instrument, Period.FIFTEEN_MINS, OfferSide.BID, IIndicators.AppliedPrice.CLOSE, 33, 1);
+    double prevEMAbaseline =
+        indicators.ema(
+            instrument, Period.FIFTEEN_MINS, OfferSide.BID, IIndicators.AppliedPrice.CLOSE, 200, 0);
+    double prevPrevEMAbaseline =
+        indicators.ema(
+            instrument, Period.FIFTEEN_MINS, OfferSide.BID, IIndicators.AppliedPrice.CLOSE, 200, 1);
+
+    this.longSignalValidity--;
+    this.shortSignalValidity--;
+
+    boolean isUptrend = prevEMAbaseline > prevPrevEMAbaseline;
+    if ((this.prevIsUptrend == true && isUptrend == false) || this.longSignalValidity == 0) {
+      this.entrySignalForLong = false;
+      this.longSignalValidity = 20;
+    }
+    if ((this.prevIsUptrend == false && isUptrend == true) || this.shortSignalValidity == 0) {
+      this.entrySignalForShort = false;
+      this.shortSignalValidity = 20;
+    }
+    this.prevIsUptrend = isUptrend;
+
+
+
+    int stopLossPips = 20;
+    if (totalOrdersCount() == 0) {
+      if (isUptrend && entrySignalForLong && prevPrevEMAflash < prevPrevEMAslow && prevEMAflash > prevEMAslow) {
+          double stopLossForLong = bidBar.getClose() - (stopLossPips * instrument.getPipValue());
+          engine
+              .submitOrder(
+                  getLabel(instrument),
+                  instrument,
+                  OrderCommand.BUY,
+                  0.02,
+                  askBar.getClose(),
+                  3.0,
+                  getRoundedPrice(stopLossForLong),
+                  0);
+        this.entrySignalForLong = false;
+        this.longSignalValidity = 20;
+      }
+      if (!isUptrend && entrySignalForShort && prevPrevEMAflash > prevPrevEMAslow && prevEMAflash < prevEMAslow) {
+          double stopLossForShort = askBar.getClose() + (stopLossPips * instrument.getPipValue());
+            engine
+              .submitOrder(
+                  getLabel(instrument),
+                  instrument,
+                  OrderCommand.SELL,
+                  0.02,
+                  bidBar.getClose(),
+                  3.0,
+                  getRoundedPrice(stopLossForShort),
+                  0);
+        this.entrySignalForShort = false;
+        this.shortSignalValidity = 20;
+      }
+    }
+
+    if (totalOrdersCount() > 0) {
+      if (isLong() && prevPrevEMAflash > prevPrevEMAslow && prevEMAflash < prevEMAslow) {
+        closeAllOrders();
+      }
+      if (!isLong() && prevPrevEMAflash < prevPrevEMAslow && prevEMAflash > prevEMAslow) {
+        closeAllOrders();
+      }
+    }
+
     // extract to arg later potentially
     int getRocForCandlesBack = 800;
-    double percentOfExtrermeDataPoints = 0.05;
+    double percentOfExtrermeDataPoints = 0.15;
 
     IBar startingBar = history.getBar(instrument, Period.FIFTEEN_MINS, OfferSide.ASK, getRocForCandlesBack);
     IBar endingBar = history.getBar(instrument, Period.FIFTEEN_MINS, OfferSide.ASK, 1);
@@ -126,12 +212,10 @@ public class RocOwner implements IStrategy {
       }
     }
     double heightOfRocChart = Math.abs(min) + Math.abs(max);
-    double singleIncrement = heightOfRocChart / heightSplitCount;
-
-
-
     // configurable
     int heightSplitCount = 60;
+    double singleIncrement = heightOfRocChart / heightSplitCount;
+
     double extremeHigh = Double.NEGATIVE_INFINITY;
     double extremeLow = Double.POSITIVE_INFINITY;
     for (int j = 1; j <= heightSplitCount; j++) {
@@ -154,9 +238,17 @@ public class RocOwner implements IStrategy {
         extremeHigh = measuredLevel;
       }
     }
+    // console.getOut().println(extremeHigh);
+    // console.getOut().println(extremeLow);
 
-    console.getOut().println(extremeHigh);
-    console.getOut().println(extremeLow);
+    if (rocM15[getRocForCandlesBack - 1] < extremeLow) {
+      this.entrySignalForLong = true;
+    }
+
+    if (rocM15[getRocForCandlesBack - 1] > extremeHigh) {
+      this.entrySignalForShort = true;
+    }
+
 
 
 
@@ -372,5 +464,13 @@ public class RocOwner implements IStrategy {
     } else {
       return false;
     }
+  }
+
+  protected String getLabel(Instrument instrument) {
+    return instrument.name().substring(0, 2)
+        + instrument.name().substring(3, 5)
+        + "DDtrails"
+        + this.context.getTime()
+        + Integer.toString(++this.ordersCounter);
   }
 }
