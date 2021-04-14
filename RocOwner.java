@@ -31,8 +31,30 @@ public class RocOwner implements IStrategy {
   private boolean entrySignalForShort = false;
   private boolean prevIsUptrend = false;
   private int ordersCounter = 0;
-  private int longSignalValidity = 8;
-  private int shortSignalValidity = 8;
+  private int longSignalValidity = 50;
+  private int shortSignalValidity = 50;
+
+  private double prevSMAflash1 = -1;
+  private double prevSMAflash2 = -1;
+  private double prevSMAflash3 = -1;
+  private double prevSMAflash4 = -1;
+  private double prevSMAflash5 = -1;
+
+  private int fallsCount = 0;
+  private int growsCount = 0;
+
+  private int candlesInTrade = 0;
+
+  private boolean prevIsGrowing = false;
+  private boolean prevIsFalling = false;
+
+  private boolean m15PartDone = false;
+  private boolean h1PartDone = false;
+  private boolean h4PartDone = false;
+
+  private boolean beTaken = false;
+  private boolean tpTaken = false;
+
 
   public void onStart(IContext context) throws JFException {
     if (instrument == null) {
@@ -66,7 +88,11 @@ public class RocOwner implements IStrategy {
           break;
         case ORDER_SUBMIT_OK:
         case ORDER_CLOSE_OK:
-
+          this.m15PartDone = false;
+          this.h1PartDone = false;
+          this.h4PartDone = false;
+          this.beTaken = false;
+          this.tpTaken = false;
         case ORDERS_MERGE_OK:
           break;
         case NOTIFICATION:
@@ -102,28 +128,82 @@ public class RocOwner implements IStrategy {
       return;
     }
 
+    if (filledOrdersCount() > 0) {
+      if (period == Period.FIFTEEN_MINS && !this.m15PartDone) {
+        this.candlesInTrade++;
+      }
+      if (period == Period.ONE_HOUR && !this.h1PartDone) {
+        this.candlesInTrade++;
+      }
+      if (period == Period.FOUR_HOURS && !this.h4PartDone) {
+        this.candlesInTrade++;
+      }
+    }
+
     if (period != Period.FIFTEEN_MINS) {
       return;
     }
 
+
+    if (filledOrdersCount() == 0 && this.candlesInTrade > 0) {
+      this.candlesInTrade = 0;
+    }
+
+    if (this.candlesInTrade > 40 && !this.m15PartDone) {
+      this.m15PartDone = true;
+      this.candlesInTrade = this.candlesInTrade / 4;
+      console.getOut().println("m15 part done");
+    }
+
+    if (this.candlesInTrade > 35 && !this.h1PartDone) {
+      this.h1PartDone = true;
+      this.candlesInTrade = this.candlesInTrade / 4;
+      console.getOut().println("h1 part done");
+    }
+
+    if (this.candlesInTrade > 30 && !this.h4PartDone) {
+      this.h4PartDone = true;
+      console.getOut().println("h4 part done");
+    }
+
+    Period smasPeriod = null;
+    if (!m15PartDone) {
+      smasPeriod = Period.FIFTEEN_MINS;
+    }
+    if (m15PartDone) {
+      smasPeriod = Period.ONE_HOUR;
+    }
+    if (h1PartDone) {
+      smasPeriod = Period.FOUR_HOURS;
+    }
+    if (h4PartDone) {
+      smasPeriod = Period.DAILY;
+    }
+
     double prevEMAflash =
         indicators.ema(
-            instrument, Period.FIFTEEN_MINS, OfferSide.BID, IIndicators.AppliedPrice.CLOSE, 5, 0);
+            instrument, smasPeriod, OfferSide.BID, IIndicators.AppliedPrice.CLOSE, 5, 1);
     double prevPrevEMAflash =
         indicators.ema(
-            instrument, Period.FIFTEEN_MINS, OfferSide.BID, IIndicators.AppliedPrice.CLOSE, 5, 1);
+            instrument, smasPeriod, OfferSide.BID, IIndicators.AppliedPrice.CLOSE, 5, 2);
     double prevEMAslow =
         indicators.ema(
-            instrument, Period.FIFTEEN_MINS, OfferSide.BID, IIndicators.AppliedPrice.CLOSE, 33, 0);
+            instrument, smasPeriod, OfferSide.BID, IIndicators.AppliedPrice.CLOSE, 33, 1);
     double prevPrevEMAslow =
         indicators.ema(
-            instrument, Period.FIFTEEN_MINS, OfferSide.BID, IIndicators.AppliedPrice.CLOSE, 33, 1);
+            instrument, smasPeriod, OfferSide.BID, IIndicators.AppliedPrice.CLOSE, 33, 2);
     double prevEMAbaseline =
         indicators.ema(
-            instrument, Period.FIFTEEN_MINS, OfferSide.BID, IIndicators.AppliedPrice.CLOSE, 200, 0);
+            instrument, smasPeriod, OfferSide.BID, IIndicators.AppliedPrice.CLOSE, 200, 1);
     double prevPrevEMAbaseline =
         indicators.ema(
-            instrument, Period.FIFTEEN_MINS, OfferSide.BID, IIndicators.AppliedPrice.CLOSE, 200, 1);
+            instrument, smasPeriod, OfferSide.BID, IIndicators.AppliedPrice.CLOSE, 200, 2);
+
+    this.prevSMAflash5 = this.prevSMAflash4;
+    this.prevSMAflash4 = this.prevSMAflash3;
+    this.prevSMAflash3 = this.prevSMAflash2;
+    this.prevSMAflash2 = this.prevSMAflash1;
+    this.prevSMAflash1 = prevEMAflash;
 
     this.longSignalValidity--;
     this.shortSignalValidity--;
@@ -131,62 +211,127 @@ public class RocOwner implements IStrategy {
     boolean isUptrend = prevEMAbaseline > prevPrevEMAbaseline;
     if ((this.prevIsUptrend == true && isUptrend == false) || this.longSignalValidity == 0) {
       this.entrySignalForLong = false;
-      this.longSignalValidity = 20;
+      this.longSignalValidity = 50;
+      this.fallsCount = 0;
     }
     if ((this.prevIsUptrend == false && isUptrend == true) || this.shortSignalValidity == 0) {
       this.entrySignalForShort = false;
-      this.shortSignalValidity = 20;
+      this.shortSignalValidity = 50;
+      this.growsCount = 0;
     }
     this.prevIsUptrend = isUptrend;
+
+    if (this.entrySignalForLong) {
+      if (priceIsGrowing() && !this.prevIsGrowing) {
+        this.growsCount++;
+      }
+      this.prevIsGrowing = priceIsGrowing();
+    }
+
+    if (this.entrySignalForShort) {
+      if (priceIsFalling() && !this.prevIsFalling) {
+        this.fallsCount++;
+      }
+      this.prevIsFalling = priceIsFalling();
+    }
+
+    if (totalOrdersCount() != 0 && !this.beTaken) {
+      IOrder tmp_ord = engine.getOrders(this.instrument).get(0);
+      double newPrice = tmp_ord.getOpenPrice();
+      if (tmp_ord.getProfitLossInPips() > 35) {
+        tmp_ord.setStopLossPrice(tmp_ord.getOpenPrice());
+        this.beTaken = true;
+      }
+    }
+
+    // this is useless and IMO should be removed.
+    if (totalOrdersCount() != 0 && !this.tpTaken) {
+      console.getOut().println("!!!!!!!!!!!!!!");
+      IOrder sample_ord = engine.getOrders(this.instrument).get(0);
+      if (isLong()) {
+        if (sample_ord.getProfitLossInPips() > 120) {
+          double slPrice = sample_ord.getOpenPrice() + (40 * instrument.getPipValue());
+          sample_ord.setStopLossPrice(getRoundedPrice(slPrice));
+          this.tpTaken = true;
+        }
+      }
+      if (!isLong()) {
+        if (sample_ord.getProfitLossInPips() > 120) {
+          double slPrice = sample_ord.getOpenPrice() - (40 * instrument.getPipValue());
+          sample_ord.setStopLossPrice(getRoundedPrice(slPrice));
+          this.tpTaken = true;
+        }
+      }
+    }
+
 
 
 
     int stopLossPips = 20;
     if (totalOrdersCount() == 0) {
-      if (isUptrend && entrySignalForLong && prevPrevEMAflash < prevPrevEMAslow && prevEMAflash > prevEMAslow) {
+      // if (growsCount == 3 && isUptrend && entrySignalForLong && prevPrevEMAflash < prevPrevEMAslow && prevEMAflash > prevEMAslow) {
+      if (growsCount == 1 && isUptrend && entrySignalForLong) {
           double stopLossForLong = bidBar.getClose() - (stopLossPips * instrument.getPipValue());
+          double tpForLong = 0;
           engine
               .submitOrder(
                   getLabel(instrument),
                   instrument,
                   OrderCommand.BUY,
-                  0.02,
+                  1.182213,
                   askBar.getClose(),
                   3.0,
                   getRoundedPrice(stopLossForLong),
-                  0);
+                  tpForLong);
         this.entrySignalForLong = false;
-        this.longSignalValidity = 20;
+        this.longSignalValidity = 50;
+        this.growsCount = 0;
+        this.candlesInTrade = 0;
       }
-      if (!isUptrend && entrySignalForShort && prevPrevEMAflash > prevPrevEMAslow && prevEMAflash < prevEMAslow) {
+      // if (fallsCount == 3 && !isUptrend && entrySignalForShort && prevPrevEMAflash > prevPrevEMAslow && prevEMAflash < prevEMAslow) {
+      if (fallsCount == 3 && !isUptrend && entrySignalForShort) {
           double stopLossForShort = askBar.getClose() + (stopLossPips * instrument.getPipValue());
+          double tpForShort = 0;
             engine
               .submitOrder(
                   getLabel(instrument),
                   instrument,
                   OrderCommand.SELL,
-                  0.02,
+                  1.182213,
                   bidBar.getClose(),
                   3.0,
                   getRoundedPrice(stopLossForShort),
-                  0);
+                  tpForShort);
         this.entrySignalForShort = false;
-        this.shortSignalValidity = 20;
+        this.shortSignalValidity = 50;
+        this.fallsCount = 0;
+        this.candlesInTrade = 0;
       }
     }
 
     if (totalOrdersCount() > 0) {
-      if (isLong() && prevPrevEMAflash > prevPrevEMAslow && prevEMAflash < prevEMAslow) {
+      IOrder sample_ord = engine.getOrders(this.instrument).get(0);
+      if (isLong() && prevPrevEMAflash > prevPrevEMAslow && prevEMAflash < prevEMAslow && sample_ord.getProfitLossInPips() > stopLossPips) {
         closeAllOrders();
+        this.candlesInTrade = 0;
+    // console.getOut().println("closing long");
+    // console.getOut().println(prevPrevEMAflash);
+    // console.getOut().println(prevPrevEMAslow);
+    // console.getOut().println(prevEMAflash);
+    // console.getOut().println(prevEMAslow);
       }
-      if (!isLong() && prevPrevEMAflash < prevPrevEMAslow && prevEMAflash > prevEMAslow) {
+      if (!isLong() && prevPrevEMAflash < prevPrevEMAslow && prevEMAflash > prevEMAslow && sample_ord.getProfitLossInPips() > stopLossPips) {
         closeAllOrders();
+        this.candlesInTrade = 0;
+    // console.getOut().println("closing short");
+    // console.getOut().println(prevPrevEMAflash < prevPrevEMAslow);
+    // console.getOut().println(prevEMAflash > prevEMAslow);
       }
     }
 
     // extract to arg later potentially
     int getRocForCandlesBack = 800;
-    double percentOfExtrermeDataPoints = 0.15;
+    double percentOfExtrermeDataPoints = 0.2;
 
     IBar startingBar = history.getBar(instrument, Period.FIFTEEN_MINS, OfferSide.ASK, getRocForCandlesBack);
     IBar endingBar = history.getBar(instrument, Period.FIFTEEN_MINS, OfferSide.ASK, 1);
@@ -213,7 +358,7 @@ public class RocOwner implements IStrategy {
     }
     double heightOfRocChart = Math.abs(min) + Math.abs(max);
     // configurable
-    int heightSplitCount = 60;
+    int heightSplitCount = 200;
     double singleIncrement = heightOfRocChart / heightSplitCount;
 
     double extremeHigh = Double.NEGATIVE_INFINITY;
@@ -241,11 +386,11 @@ public class RocOwner implements IStrategy {
     // console.getOut().println(extremeHigh);
     // console.getOut().println(extremeLow);
 
-    if (rocM15[getRocForCandlesBack - 1] < extremeLow) {
+    if (rocM15[getRocForCandlesBack - 1] < extremeLow && filledOrdersCount() == 0) {
       this.entrySignalForLong = true;
     }
 
-    if (rocM15[getRocForCandlesBack - 1] > extremeHigh) {
+    if (rocM15[getRocForCandlesBack - 1] > extremeHigh && filledOrdersCount() == 0) {
       this.entrySignalForShort = true;
     }
 
@@ -464,6 +609,24 @@ public class RocOwner implements IStrategy {
     } else {
       return false;
     }
+  }
+
+  protected boolean priceIsFalling() {
+    return (this.prevSMAflash1 < this.prevSMAflash2 && this.prevSMAflash2 < this.prevSMAflash3 && this.prevSMAflash3 < this.prevSMAflash4 && this.prevSMAflash4 < this.prevSMAflash5);
+    // this.prevSMAflash5 = this.prevSMAflash4
+    // this.prevSMAflash4 = this.prevSMAflash3
+    // this.prevSMAflash3 = this.prevSMAflash2
+    // this.prevSMAflash2 = this.prevSMAflash1
+    // this.prevSMAflash1 = prevEMAflash;
+  }
+
+  protected boolean priceIsGrowing() {
+    return (this.prevSMAflash1 > this.prevSMAflash2 && this.prevSMAflash2 > this.prevSMAflash3 && this.prevSMAflash3 > this.prevSMAflash4 && this.prevSMAflash4 > this.prevSMAflash5);
+    // this.prevSMAflash5 = this.prevSMAflash4
+    // this.prevSMAflash4 = this.prevSMAflash3
+    // this.prevSMAflash3 = this.prevSMAflash2
+    // this.prevSMAflash2 = this.prevSMAflash1
+    // this.prevSMAflash1 = prevEMAflash;
   }
 
   protected String getLabel(Instrument instrument) {
