@@ -46,6 +46,13 @@ public class AlwaysWinner implements IStrategy {
   private double botFilterLimit = -1;
   private double prevTopBand = -1;
   private double prevBottomBand = -1;
+  private IOrder orderWaitingForFill = null;
+
+  private double topPrice = -1;
+  private double midTopPrice = -1;
+  private double bottomPrice = -1;
+  private double midBottomPrice = -1;
+  private double prevNextAmount = -1;
 
   public void onStart(IContext context) throws JFException {
     this.console = context.getConsole();
@@ -81,6 +88,12 @@ public class AlwaysWinner implements IStrategy {
             closeAllOrders();
             this.initialTradeLong = false;
             this.initialTradeShort = false;
+            this.orderWaitingForFill = null;
+            this.topPrice = -1;
+            this.midTopPrice = -1;
+            this.midBottomPrice = -1;
+            this.bottomPrice = -1;
+            this.prevNextAmount = -1;
           }
           break;
         case ORDERS_MERGE_OK:
@@ -105,11 +118,69 @@ public class AlwaysWinner implements IStrategy {
     if (instrument != this.instrument) {
       return;
     }
+
+    if (this.orderWaitingForFill != null
+        && this.orderWaitingForFill.getState() == IOrder.State.FILLED) {
+
+      int filledOrdersCount = 0;
+      filledOrdersCount = filledOrdersCount();
+      double nextAmount = -1;
+
+      switch (filledOrdersCount) {
+        case 2:
+          nextAmount = 0.01;
+          break;
+        case 3:
+          nextAmount = 0.014;
+          break;
+        case 4:
+          nextAmount = 0.019;
+          break;
+        case 5:
+          nextAmount = 0.025;
+          break;
+        case 6:
+          nextAmount = 0.033;
+          break;
+        case 7:
+          nextAmount = 0.044;
+          break;
+        default:
+          nextAmount = this.prevNextAmount * 1.33;
+          break;
+      }
+      this.prevNextAmount = nextAmount;
+
+      if (this.orderWaitingForFill.getOrderCommand() == OrderCommand.SELL) {
+        this.orderWaitingForFill =
+            engine.submitOrder(
+                getLabel(instrument),
+                instrument,
+                OrderCommand.BUYSTOP,
+                nextAmount,
+                this.midTopPrice,
+                3,
+                this.bottomPrice,
+                this.topPrice);
+      }
+      if (this.orderWaitingForFill.getOrderCommand() == OrderCommand.BUY) {
+        this.orderWaitingForFill =
+            engine.submitOrder(
+                getLabel(instrument),
+                instrument,
+                OrderCommand.SELLSTOP,
+                nextAmount,
+                this.midBottomPrice,
+                3,
+                this.topPrice,
+                this.bottomPrice);
+      }
+    }
   }
 
   public void onBar(Instrument instrument, Period period, IBar askBar, IBar bidBar)
       throws JFException {
-    if (instrument != this.instrument || period != Period.FOUR_HOURS) {
+    if (instrument != this.instrument || period != Period.FIFTEEN_MINS) {
       return;
     }
 
@@ -117,11 +188,11 @@ public class AlwaysWinner implements IStrategy {
     ordersTotal = engine.getOrders(this.instrument).size();
 
     // TOP AND BOTTOM BAND generation
-    long prevBarTime = history.getPreviousBarStart(Period.FOUR_HOURS, askBar.getTime());
+    long prevBarTime = history.getPreviousBarStart(Period.FIFTEEN_MINS, askBar.getTime());
     List<IBar> askBarsX =
         history.getBars(
             this.instrument,
-            Period.FOUR_HOURS,
+            Period.FIFTEEN_MINS,
             OfferSide.ASK,
             Filter.WEEKENDS,
             50,
@@ -136,7 +207,7 @@ public class AlwaysWinner implements IStrategy {
     List<IBar> bidBarsX =
         history.getBars(
             this.instrument,
-            Period.FOUR_HOURS,
+            Period.FIFTEEN_MINS,
             OfferSide.BID,
             Filter.WEEKENDS,
             50,
@@ -158,24 +229,34 @@ public class AlwaysWinner implements IStrategy {
     }
 
     if (this.bottomBandStretched && ordersTotal == 0) {
+      // this.topPrice = getRoundedPrice(askBar.getClose() + 60 * instrument.getPipValue());
+      // this.midTopPrice = getRoundedPrice(askBar.getClose());
+      // this.midBottomPrice = getRoundedPrice(askBar.getClose() - 20 * instrument.getPipValue());
+      // this.bottomPrice = getRoundedPrice(askBar.getClose() - 80 * instrument.getPipValue());
+      this.topPrice = getRoundedPrice(askBar.getClose() + 80 * instrument.getPipValue());
+      this.midTopPrice = getRoundedPrice(askBar.getClose());
+      this.midBottomPrice = getRoundedPrice(askBar.getClose() - 20 * instrument.getPipValue());
+      this.bottomPrice = getRoundedPrice(askBar.getClose() - 100 * instrument.getPipValue());
+
       engine.submitOrder(
           getLabel(instrument),
           instrument,
           OrderCommand.BUY,
           0.01,
-          askBar.getClose(),
+          this.midTopPrice,
           3,
-          getRoundedPrice(askBar.getClose() - 80 * instrument.getPipValue()),
-          getRoundedPrice(askBar.getClose() + 60 * instrument.getPipValue()));
-      engine.submitOrder(
-          getLabel(instrument),
-          instrument,
-          OrderCommand.SELLSTOP,
-          0.014,
-          getRoundedPrice(askBar.getClose() - 20 * instrument.getPipValue()),
-          3,
-          getRoundedPrice(askBar.getClose() + 60 * instrument.getPipValue()),
-          getRoundedPrice(askBar.getClose() - 80 * instrument.getPipValue()));
+          this.bottomPrice,
+          this.topPrice);
+      this.orderWaitingForFill =
+          engine.submitOrder(
+              getLabel(instrument),
+              instrument,
+              OrderCommand.SELLSTOP,
+              0.014,
+              this.midBottomPrice,
+              3,
+              this.topPrice,
+              this.bottomPrice);
       this.initialTradeLong = true;
     }
 
@@ -312,10 +393,10 @@ public class AlwaysWinner implements IStrategy {
   protected boolean canEnterLong() throws JFException {
     double SMAflashH4 =
         indicators.sma(
-            instrument, Period.FOUR_HOURS, OfferSide.ASK, IIndicators.AppliedPrice.CLOSE, 6, 0);
+            instrument, Period.FIFTEEN_MINS, OfferSide.ASK, IIndicators.AppliedPrice.CLOSE, 6, 0);
     double SMAsecondH4 =
         indicators.sma(
-            instrument, Period.FOUR_HOURS, OfferSide.ASK, IIndicators.AppliedPrice.CLOSE, 14, 0);
+            instrument, Period.FIFTEEN_MINS, OfferSide.ASK, IIndicators.AppliedPrice.CLOSE, 14, 0);
     if (SMAflashH4 >= SMAsecondH4) {
       return true;
     } else {
